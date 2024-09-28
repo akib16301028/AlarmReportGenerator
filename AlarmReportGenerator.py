@@ -102,7 +102,10 @@ def extract_timestamp(file_name):
     match = re.search(r'\((.*?)\)', file_name)
     if match:
         timestamp_str = match.group(1)
-        return pd.to_datetime(timestamp_str.replace('_', ':'), format='%B %dth %Y, %I_%M_%S %p')
+        # Parse the timestamp string and set the timezone to Dhaka
+        naive_time = datetime.strptime(timestamp_str.replace('_', ':'), '%B %dth %Y, %I_%M_%S %p')
+        dhaka_tz = pytz.timezone('Asia/Dhaka')
+        return dhaka_tz.localize(naive_time)  # Localize to Dhaka time
     return None
 
 # Function to convert multiple DataFrames to Excel with separate sheets
