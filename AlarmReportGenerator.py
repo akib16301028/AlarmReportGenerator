@@ -226,7 +226,7 @@ if alarm_data:
     )
 else:
     st.warning("No current alarm data available for export.")
-)
+
 
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
