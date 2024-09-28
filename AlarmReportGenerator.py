@@ -3,7 +3,6 @@ import pandas as pd
 import re
 from io import BytesIO
 from datetime import datetime
-import pytz
 
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
@@ -80,13 +79,9 @@ def create_offline_pivot(df):
     return pivot, total_offline_count
 
 # Function to calculate time offline smartly (minutes, hours, or days)
-def calculate_time_offline(df, reference_time):
-    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p')
-    
-    # Make Last Online Time timezone-aware
-    df['Last Online Time'] = df['Last Online Time'].dt.tz_localize('Asia/Dhaka')
-
-    df['Hours Offline'] = (reference_time - df['Last Online Time']).dt.total_seconds() / 3600  # Convert to hours
+def calculate_time_offline(df, current_time):
+    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
+    df['Hours Offline'] = (current_time - df['Last Online Time']).dt.total_seconds() / 3600  # Convert to hours
 
     # Determine the Offline Duration column based on Hours Offline
     def format_offline_duration(hours):
@@ -101,15 +96,12 @@ def calculate_time_offline(df, reference_time):
 
     return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
 
-# Function to extract the file name's timestamp and convert it to a datetime object
+# Function to extract the file name's timestamp
 def extract_timestamp(file_name):
     match = re.search(r'\((.*?)\)', file_name)
     if match:
         timestamp_str = match.group(1)
-        # Convert the extracted string to datetime format
-        timestamp_str = timestamp_str.replace('th', '')  # Remove 'th' from date
-        reference_time = datetime.strptime(timestamp_str, '%B %d %Y, %I_%M_%S %p')
-        return reference_time  # Return the naive datetime
+        return pd.to_datetime(timestamp_str.replace('_', ':'), format='%B %dth %Y, %I:%M:%S %p')
     return None
 
 # Function to convert multiple DataFrames to Excel with separate sheets
@@ -132,23 +124,20 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
-        # Extract timestamps from the filenames
-        reference_time = extract_timestamp(uploaded_offline_file.name)
-
-        # Convert reference_time to UTC (or any desired timezone) for consistency
-        dhaka_tz = pytz.timezone('Asia/Dhaka')
-        reference_time = dhaka_tz.localize(reference_time)  # Localize to Dhaka time
+        # Extract timestamps from filenames
+        current_time = extract_timestamp(uploaded_alarm_file.name)
+        offline_time = extract_timestamp(uploaded_offline_file.name)
 
         # Process the Offline Report
         pivot_offline, total_offline_count = create_offline_pivot(offline_df)
 
         st.markdown("### Offline Report")
-        st.markdown(f"<small><i>till {reference_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
+        st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
         st.dataframe(pivot_offline)
 
-        # Calculate time offline smartly using the reference time
-        time_offline_df = calculate_time_offline(offline_df, reference_time)
+        # Calculate time offline smartly using the offline time
+        time_offline_df = calculate_time_offline(offline_df, offline_time)
 
         # Create a summary table based on offline duration
         summary_dict = {}
@@ -176,6 +165,11 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         else:
             alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
             alarm_df = alarm_df[~alarm_df['Client'].isnull()]
+
+            # Add the current time to the alarm header
+            st.markdown(f"### Current Alarms Report")
+            st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
+
             alarm_names = alarm_df['Alarm Name'].unique()
 
             # Define the priority order for the alarm names
@@ -201,23 +195,31 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 pivot_table, total_alarm_count = create_pivot_table(alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot_table, total_alarm_count)
 
+            # Create download button for current Alarm Report
+            current_alarm_excel_data = to_excel({f"Current Alarm Report": (alarm_df, None)})
+
             # Combine all pivot tables into one Excel file
-            combined_alarm_df = pd.concat([pivot_table.assign(Alarm=alarm_name) for alarm_name, (pivot_table, _) in alarm_data.items()], ignore_index=True)
+            combined_alarm_df = pd.concat(
+                [pivot_table for pivot_table, _ in alarm_data.values()],
+                keys=alarm_data.keys(),
+                names=['Alarm Name', 'Row']
+            ).reset_index()
 
-            # Display each alarm report
-            for alarm_name in ordered_alarm_names:
-                pivot_table, total_alarm_count = alarm_data[alarm_name]
-                st.markdown(f"### {alarm_name}")
-                st.markdown(f"**Total Alarm Count:** {total_alarm_count}")
-                st.dataframe(pivot_table)
+            # Create download button for the combined Excel report
+            combined_excel_data = to_excel({f"Combined Alarm Report": (combined_alarm_df, None)})
 
-            # Create download button for combined Alarm Report
-            combined_alarm_excel_data = to_excel({f"Combined Alarm Report": (combined_alarm_df, None)})
             st.download_button(
-                label="Download All Alarms Report as Excel",
-                data=combined_alarm_excel_data,
-                file_name=f"All_Alarms_Report_{reference_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                label="Download Current Alarm Report",
+                data=current_alarm_excel_data,
+                file_name='current_alarm_report.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+
+            st.download_button(
+                label="Download Combined Alarm Report",
+                data=combined_excel_data,
+                file_name='combined_alarm_report.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
 
     except Exception as e:
