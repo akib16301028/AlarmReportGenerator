@@ -65,17 +65,15 @@ def create_offline_pivot(df):
         'Duration': lambda x: (x == 'More than 24 hours').sum(),
         'Duration': lambda x: (x == 'More than 72 hours').sum(),
         'Site Alias': 'nunique'
-    }).rename(columns={'Site Alias': 'Total'}).reset_index()
-    
-    # Add the duration counts to the pivot
-    duration_counts = df['Duration'].value_counts()
-    for duration in duration_counts.index:
-        pivot[duration] = (df['Duration'] == duration).astype(int)
+    }).reset_index()
+
+    # Rename the duration columns for clarity
+    pivot.columns = ['Cluster', 'Zone', 'Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']
 
     # Add a total row for each column
     total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
-    
+
     # Append the total row
     pivot = pd.concat([pivot, total_row], ignore_index=True)
 
@@ -88,6 +86,7 @@ def create_offline_pivot(df):
             last_cluster = pivot.at[i, 'Cluster']
 
     return pivot, total_offline_count
+
 
 # Function to extract the file name's timestamp
 def extract_timestamp(file_name):
