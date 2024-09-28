@@ -195,6 +195,10 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 pivot_table, total_alarm_count = create_pivot_table(alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot_table, total_alarm_count)
 
+                # Display the pivot table for the current alarm
+                st.markdown(f"#### {alarm_name} (Total: {total_alarm_count})")
+                st.dataframe(pivot_table)
+
             # Create download button for current Alarm Report
             current_alarm_excel_data = to_excel({f"Current Alarm Report": (alarm_df, None)})
 
