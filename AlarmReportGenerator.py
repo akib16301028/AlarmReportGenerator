@@ -1,100 +1,63 @@
-import pandas as pd
 import streamlit as st
-import os
-from openpyxl import Workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
-import tempfile
+import pandas as pd
+import re
+from io import BytesIO
 
-# Function to process the uploaded file
-def process_file(file):
-    # Load the Excel file and use row 3 (index 2) as the header
-    df = pd.read_excel(file, header=2)
+# Function to extract client name from Site Alias
+def extract_client(site_alias):
+    match = re.search(r'\((.*?)\)', site_alias)
+    return match.group(1) if match else None
 
-    # Step 0: Identify leased sites (sites starting with 'L' in column B)
-    if 'Site' in df.columns:
-        leased_sites = df[df['Site'].str.startswith('L', na=False)]
-        leased_site_names = leased_sites['Site'].tolist()
-    else:
-        raise ValueError("'Site' column not found in the data!")
+# Streamlit app
+st.title("Alarm Data Pivot Table Generator")
 
-    # Step 1: Identify BANJO and Non BANJO sites in the 'Site Alias' column (Column C)
-    if 'Site Alias' in df.columns:
-        df['Site Type'] = df['Site Alias'].apply(lambda x: 'BANJO' if '(BANJO)' in str(x) else 'Non BANJO')
-        df['Client'] = df['Site Alias'].apply(lambda x: 'BL' if '(BL)' in str(x)
-            else 'GP' if '(GP)' in str(x)
-            else 'Robi' if '(ROBI)' in str(x)
-            else 'BANJO')
-    else:
-        raise ValueError("'Site Alias' column not found in the data!")
+# Upload Excel file
+uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
+if uploaded_file is not None:
+    # Read the uploaded Excel file
+    df = pd.read_excel(uploaded_file, header=2)
 
-    # Step 2: Filter relevant alarm categories in the 'Alarm Name' column
-    alarm_categories = ['Battery Low', 'Mains Fail', 'DCDB-01 Primary Disconnect', 'PG Run']
-    if 'Alarm Name' in df.columns:
-        filtered_df = df[df['Alarm Name'].isin(alarm_categories)]
-    else:
-        raise ValueError("'Alarm Name' column not found in the data!")
+    # Add a new column for Client extracted from Site Alias
+    df['Client'] = df['Site Alias'].apply(extract_client)
 
-    # Step 3: Exclude leased sites for "DCDB-01 Primary Disconnect" alarm
-    dcdb_df = filtered_df[filtered_df['Alarm Name'] == 'DCDB-01 Primary Disconnect']
-    non_leased_dcdb_df = dcdb_df[~dcdb_df['Site'].isin(leased_site_names)]
-    filtered_df = pd.concat([filtered_df[filtered_df['Alarm Name'] != 'DCDB-01 Primary Disconnect'], non_leased_dcdb_df])
+    # Filter out leased sites for the specific alarm
+    filtered_df = df[~df['RMS Station'].str.startswith('L') | (df['Alarm Name'] != 'DCDB-01 Primary Disconnect')]
 
-    # Step 5: Generate a client-wise table for tenant counts for each alarm
-    if 'Tenant' in df.columns:
-        client_table = df.groupby(['Alarm Name', 'Client', 'Tenant']).size().reset_index(name='Count')
-        pivot_table = client_table.pivot_table(index=['Alarm Name', 'Client'], columns='Tenant', values='Count', fill_value=0)
-        pivot_table.reset_index(inplace=True)
-        pivot_table.columns.name = None
-    else:
-        raise ValueError("'Tenant' column not found in the data!")
+    # Create a pivot table for the alarm 'DCDB-01 Primary Disconnect'
+    pivot_table = pd.pivot_table(
+        filtered_df[filtered_df['Alarm Name'] == 'DCDB-01 Primary Disconnect'],
+        index=['Cluster', 'Zone', 'Client'],
+        values='Site Alias',  # This is just a placeholder, will be counted
+        aggfunc='count',
+        fill_value=0
+    ).reset_index()
 
-    # Add Total Count
-    pivot_table['Total'] = pivot_table.sum(axis=1)
+    # Add a total count for each Client and overall
+    pivot_table['Total'] = pivot_table.iloc[:, 3:].sum(axis=1)  # Sum all client counts
+    total_counts = pivot_table[['Client', 'Total']].groupby('Client').sum().reset_index()
+    total_counts = total_counts.append({'Client': 'Total', 'Total': total_counts['Total'].sum()}, ignore_index=True)
 
-    # Display the pivot table on the webpage
+    # Display pivot table
     st.subheader("Pivot Table")
     st.dataframe(pivot_table)
 
-    return filtered_df, pivot_table
+    # Display total counts
+    st.subheader("Total Counts")
+    st.dataframe(total_counts)
 
-# Main Streamlit app
-st.title("Alarm Summary Report Generator")
+    # Function to convert DataFrame to Excel for download
+    def to_excel(df1, df2):
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df1.to_excel(writer, sheet_name='Pivot Table', index=False)
+            df2.to_excel(writer, sheet_name='Total Counts', index=False)
+        return output.getvalue()
 
-# File uploader for Excel file
-uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx"])
-
-if uploaded_file is not None:
-    filtered_df, pivot_table = process_file(uploaded_file)
-
-    # Define the path for saving the output file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
-        output_file = temp_file.name
-
-        # Create a new Workbook
-        wb = Workbook()
-        
-        # Save the original DataFrame to a new sheet
-        ws_original = wb.active
-        ws_original.title = "Original Data"
-        for r_idx, row in enumerate(dataframe_to_rows(filtered_df, index=False, header=True), 1):
-            for c_idx, value in enumerate(row, 1):
-                ws_original.cell(row=r_idx, column=c_idx, value=value)
-
-        # Adding the pivot table to the Excel file
-        ws_pivot = wb.create_sheet(title="Pivot Table")
-        for r_idx, row in enumerate(dataframe_to_rows(pivot_table, index=False, header=True), 1):
-            for c_idx, value in enumerate(row, 1):
-                ws_pivot.cell(row=r_idx, column=c_idx, value=value)
-
-        # Save the workbook
-        wb.save(output_file)
-
-    # Provide a download button for the generated report
-    with open(output_file, "rb") as f:
-        st.download_button("Download Excel Report", f, file_name="Alarm_Summary_Report_Formatted_By_Alarm.xlsx")
-
-    st.success("Report generated successfully!")
-
-else:
-    st.info("Please upload an Excel file to generate the report.")
+    # Create download button
+    excel_data = to_excel(pivot_table, total_counts)
+    st.download_button(
+        label="Download Output Excel File",
+        data=excel_data,
+        file_name="pivot_table_output.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
