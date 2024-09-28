@@ -1,5 +1,4 @@
 import pandas as pd
-import os
 import streamlit as st
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
@@ -8,51 +7,60 @@ import io
 
 # Function to process the Excel file and generate the report
 def process_excel(file):
-    # Load the Excel file and use row 3 (index 2) as the header
-    df = pd.read_excel(file, header=2)
-    st.subheader("Original Data")
-    st.dataframe(df)
+    try:
+        # Load the Excel file and use row 3 (index 2) as the header
+        df = pd.read_excel(file, header=2)
+        st.subheader("📄 Original Data")
+        st.dataframe(df)
+    except Exception as e:
+        st.error(f"Error loading Excel file: {e}")
+        return None
 
-    # Step 0: Identify leased sites (sites starting with 'L' in column B)
+    # Step 0: Identify leased sites (sites starting with 'L' in column 'Site')
     if 'Site' in df.columns:
         leased_sites = df[df['Site'].str.startswith('L', na=False)]
         leased_site_names = leased_sites['Site'].tolist()  # List of leased site names for filtering
-        st.write(f"Identified {len(leased_site_names)} leased sites.")
+        st.write(f"✅ Identified {len(leased_site_names)} leased sites.")
     else:
-        st.error(f"'Site' column not found in the data! Columns available: {df.columns}")
-        return
+        st.error(f"'Site' column not found in the data! Columns available: {df.columns.tolist()}")
+        return None
 
-    # Step 1: Identify BANJO and Non BANJO sites in the 'Site Alias' column (Column C)
+    # Step 1: Identify BANJO and Non BANJO sites in the 'Site Alias' column
     if 'Site Alias' in df.columns:
         df['Site Type'] = df['Site Alias'].apply(lambda x: 'BANJO' if '(BANJO)' in str(x) else 'Non BANJO')
         # Extract client information (BL, GP, Robi) from Site Alias
-        df['Client'] = df['Site Alias'].apply(lambda x: 'BL' if '(BL)' in str(x)
-                                            else 'GP' if '(GP)' in str(x)
-                                            else 'Robi' if '(ROBI)' in str(x)
-                                            else 'BANJO')
-        st.write("Added 'Site Type' and 'Client' columns.")
+        df['Client'] = df['Site Alias'].apply(
+            lambda x: 'BL' if '(BL)' in str(x)
+            else 'GP' if '(GP)' in str(x)
+            else 'Robi' if '(ROBI)' in str(x)
+            else 'BANJO'
+        )
+        st.write("✅ Added 'Site Type' and 'Client' columns.")
     else:
-        st.error(f"'Site Alias' column not found in the data! Columns available: {df.columns}")
-        return
+        st.error(f"'Site Alias' column not found in the data! Columns available: {df.columns.tolist()}")
+        return None
 
     # Step 2: Filter relevant alarm categories in the 'Alarm Name' column
     alarm_categories = ['Battery Low', 'Mains Fail', 'DCDB-01 Primary Disconnect', 'PG Run']
     if 'Alarm Name' in df.columns:
         filtered_df = df[df['Alarm Name'].isin(alarm_categories)]
-        st.write(f"Filtered data to {len(filtered_df)} records with specified alarm categories.")
+        st.write(f"✅ Filtered data to {len(filtered_df)} records with specified alarm categories.")
     else:
-        st.error(f"'Alarm Name' column not found in the data! Columns available: {df.columns}")
-        return
+        st.error(f"'Alarm Name' column not found in the data! Columns available: {df.columns.tolist()}")
+        return None
 
     # Step 3: Exclude leased sites for "DCDB-01 Primary Disconnect" alarm
     dcdb_df = filtered_df[filtered_df['Alarm Name'] == 'DCDB-01 Primary Disconnect']
     non_leased_dcdb_df = dcdb_df[~dcdb_df['Site'].isin(leased_site_names)]  # Exclude leased sites
 
     # Step 4: Create a combined DataFrame with all alarms, replacing the filtered "DCDB-01 Primary Disconnect"
-    filtered_df = pd.concat([filtered_df[filtered_df['Alarm Name'] != 'DCDB-01 Primary Disconnect'], non_leased_dcdb_df])
+    filtered_df = pd.concat([
+        filtered_df[filtered_df['Alarm Name'] != 'DCDB-01 Primary Disconnect'],
+        non_leased_dcdb_df
+    ])
 
     # Display the filtered DataFrame
-    st.subheader("Filtered Data")
+    st.subheader("🔍 Filtered Data")
     st.dataframe(filtered_df)
 
     # Step 5: Generate a client-wise table for tenant counts for each alarm
@@ -64,11 +72,11 @@ def process_excel(file):
         pivot_table.reset_index(inplace=True)
         pivot_table.columns.name = None
 
-        st.subheader("Client-wise Tenant Counts")
+        st.subheader("📊 Client-wise Tenant Counts")
         st.dataframe(pivot_table)
     else:
-        st.error(f"'Tenant' column not found in the data! Columns available: {df.columns}")
-        return
+        st.error(f"'Tenant' column not found in the data! Columns available: {df.columns.tolist()}")
+        return None
 
     # Check for RIO (Cluster) and Subcenter (Zone)
     if 'Cluster' in df.columns and 'Zone' in df.columns:
@@ -82,7 +90,7 @@ def process_excel(file):
         # Sort the summary_table by RIO and Alarm Count (descending)
         summary_table = summary_table.sort_values(by=['RIO', 'Alarm Count'], ascending=[True, False])
 
-        st.subheader("Summary Table")
+        st.subheader("📈 Summary Table")
         st.dataframe(summary_table)
 
         # Define color fill for each RIO and header
@@ -101,6 +109,10 @@ def process_excel(file):
                               bottom=Side(border_style="thin"))
         center_alignment = Alignment(horizontal='center', vertical='center')
 
+        # Define the path for saving the output file (will be in-memory)
+        # desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")  # Removed for Streamlit
+        # output_file = os.path.join(desktop_path, "Alarm_Summary_Report_Formatted_By_Alarm.xlsx")
+
         # Create a new Workbook
         wb = Workbook()
 
@@ -116,7 +128,7 @@ def process_excel(file):
             alarm_data = summary_table[summary_table['Alarm Name'] == alarm]
 
             if alarm_data.empty:
-                st.warning(f"No data found for alarm: {alarm}")
+                st.warning(f"No data found for alarm: **{alarm}**")
                 continue
 
             # Pivot the table to get separate columns for each client (BANJO, GP, BL, Robi)
@@ -241,30 +253,53 @@ def process_excel(file):
         wb.save(output)
         output.seek(0)
 
-        return output
+        return output, summary_table
     else:
-        st.error(f"'Cluster' and/or 'Zone' column(s) not found in the data! Columns available: {df.columns}")
-        return
+        st.error(f"'Cluster' and/or 'Zone' column(s) not found in the data! Columns available: {df.columns.tolist()}")
+        return None
 
 # Streamlit App
 def main():
-    st.title("Alarm Summary Report Generator")
+    st.title("🛠️ Alarm Summary Report Generator")
 
     st.write("""
     Upload your Excel file to generate a formatted Alarm Summary Report.
+    The report includes separate summary tables for each alarm category.
     """)
 
-    uploaded_file = st.file_uploader("Choose an Excel file", type=["xlsx"])
+    uploaded_file = st.file_uploader("📂 Choose an Excel file", type=["xlsx"])
 
     if uploaded_file is not None:
-        with st.spinner('Processing...'):
-            report = process_excel(uploaded_file)
-            if report:
-                st.success("Report generated successfully!")
+        with st.spinner('🔄 Processing...'):
+            result = process_excel(uploaded_file)
+            if result:
+                report, summary_table = result
+                st.success("✅ Report generated successfully!")
+
+                # Display separate summary tables for each alarm category
+                st.subheader("📑 Detailed Summary Tables by Alarm")
+
+                for alarm in alarm_categories:
+                    alarm_data = summary_table[summary_table['Alarm Name'] == alarm]
+                    if alarm_data.empty:
+                        st.warning(f"No data found for alarm: **{alarm}**")
+                        continue
+
+                    with st.expander(f"🔍 {alarm} Summary"):
+                        # Pivot the alarm-specific summary table for better display
+                        pivot_display = alarm_data.pivot_table(
+                            index=['RIO', 'Subcenter'],
+                            columns='Client',
+                            values='Alarm Count',
+                            fill_value=0
+                        ).reset_index()
+
+                        # Optional: Sort the pivot_display as needed
+                        st.dataframe(pivot_display)
 
                 # Provide a download button for the report
                 st.download_button(
-                    label="Download Report",
+                    label="💾 Download Excel Report",
                     data=report,
                     file_name="Alarm_Summary_Report_Formatted_By_Alarm.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
