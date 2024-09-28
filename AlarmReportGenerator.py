@@ -26,7 +26,7 @@ def generate_alarm_summaries(df):
     non_leased_dcdb_df = non_leased_dcdb_df[~non_leased_dcdb_df['Site'].isin(leased_sites)]
     filtered_df = pd.concat([filtered_df[filtered_df['Alarm Name'] != 'DCDB-01 Primary Disconnect'], non_leased_dcdb_df])
 
-    # Grouping data
+    # Grouping data for each alarm category
     for alarm in alarm_categories:
         alarm_data = filtered_df[filtered_df['Alarm Name'] == alarm]
         if not alarm_data.empty:
