@@ -156,7 +156,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.dataframe(summary_df)
 
         # Check for required columns in Alarm Report
-        alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name']
+        alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time']
         if not all(col in alarm_df.columns for col in alarm_required_columns):
             st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
         else:
@@ -202,18 +202,32 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
             # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
-            for alarm_name in ordered_alarm_names:
-                pivot, total_count = create_pivot_table(alarm_df, alarm_name)
-                
-                # Only add the pivot table if it contains data
-                if not pivot.empty:
-                    alarm_data[alarm_name] = (pivot, total_count)
 
-                    # Display the alarm header with required formatting
-                    st.markdown(f"### <b>{alarm_name}</b>", unsafe_allow_html=True)
-                    st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-                    st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
-                    st.dataframe(pivot)
+            # Add a time filter for the "DCDB-01 Primary Disconnect" alarm
+            dcdb_time_filter = None
+            if 'DCDB-01 Primary Disconnect' in ordered_alarm_names:
+                dcdb_time_filter = st.date_input("Select Date Range for DCDB-01 Primary Disconnect", [])
+
+            for alarm_name in ordered_alarm_names:
+                data = create_pivot_table(alarm_df, alarm_name)
+
+                # Apply time filtering for DCDB-01 Primary Disconnect
+                if alarm_name == 'DCDB-01 Primary Disconnect' and dcdb_time_filter:
+                    # Filter the DataFrame based on the selected date range
+                    filtered_data = alarm_df[
+                        (alarm_df['Alarm Name'] == alarm_name) &
+                        (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(dcdb_time_filter))
+                    ]
+                    alarm_data[alarm_name] = create_pivot_table(filtered_data, alarm_name)
+                else:
+                    alarm_data[alarm_name] = data
+
+            # Display each pivot table for the current alarms
+            for alarm_name, (pivot, total_count) in alarm_data.items():
+                st.markdown(f"### <b>{alarm_name}</b>", unsafe_allow_html=True)
+                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
+                st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
+                st.dataframe(pivot)
 
             # Prepare download for Current Alarms Report only if there is data
             if alarm_data:
