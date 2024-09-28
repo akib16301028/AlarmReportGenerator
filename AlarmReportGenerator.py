@@ -108,7 +108,7 @@ def extract_timestamp(file_name):
 def to_excel(dfs_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        for sheet_name, (df, _) in dfs_dict.items():
+        for sheet_name, df in dfs_dict.items():
             valid_sheet_name = re.sub(r'[\\/*?:[\]]', '_', sheet_name)[:31]
             df.to_excel(writer, sheet_name=valid_sheet_name, index=False)
     return output.getvalue()
@@ -166,6 +166,20 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
             alarm_df = alarm_df[~alarm_df['Client'].isnull()]
 
+            # Prepare download for Offline Report
+            offline_report_data = {
+                "Offline Summary": pivot_offline,
+                "Offline Details": summary_df
+            }
+            offline_excel_data = to_excel(offline_report_data)
+
+            st.download_button(
+                label="Download Offline Report",
+                data=offline_excel_data,
+                file_name=f"Offline Report_{offline_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
             # Add the current time to the alarm header
             st.markdown(f"### Current Alarms Report")
             st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
@@ -189,42 +203,28 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Combine both lists to maintain the desired order
             ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
 
-            # Create a dictionary to store all pivot tables
+            # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
             for alarm_name in ordered_alarm_names:
-                pivot_table, total_alarm_count = create_pivot_table(alarm_df, alarm_name)
-                alarm_data[alarm_name] = (pivot_table, total_alarm_count)
+                if alarm_name in alarm_df['Alarm Name'].values:
+                    pivot_table, total_count = create_pivot_table(alarm_df, alarm_name)
+                    alarm_data[alarm_name] = pivot_table
 
-                # Display the pivot table for the current alarm
-                st.markdown(f"#### {alarm_name} (Total: {total_alarm_count})")
-                st.dataframe(pivot_table)
+                    # Add the total alarm count to the header
+                    alarm_data[alarm_name] = pd.concat([
+                        pd.DataFrame({ 'Alarm Name': [alarm_name], 'till': [current_time.strftime('%Y-%m-%d %H:%M:%S')], 'Total Alarm Count': [total_count] }),
+                        pivot_table
+                    ], ignore_index=True)
 
-            # Create download button for current Alarm Report
-            current_alarm_excel_data = to_excel({f"Current Alarm Report": (alarm_df, None)})
-
-            # Combine all pivot tables into one Excel file
-            combined_alarm_df = pd.concat(
-                [pivot_table for pivot_table, _ in alarm_data.values()],
-                keys=alarm_data.keys(),
-                names=['Alarm Name', 'Row']
-            ).reset_index()
-
-            # Create download button for the combined Excel report
-            combined_excel_data = to_excel({f"Combined Alarm Report": (combined_alarm_df, None)})
+            # Prepare the Excel file for Current Alarms Report
+            current_alarm_excel_data = to_excel(alarm_data)
 
             st.download_button(
                 label="Download Current Alarm Report",
                 data=current_alarm_excel_data,
-                file_name='current_alarm_report.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                file_name=f"Current Alarm Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
-            st.download_button(
-                label="Download Combined Alarm Report",
-                data=combined_excel_data,
-                file_name='combined_alarm_report.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-
+    
     except Exception as e:
-        st.error(f"An error occurred while processing the files: {e}")
+        st.error(f"An error occurred: {e}")
