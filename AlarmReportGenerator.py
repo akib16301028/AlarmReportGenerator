@@ -66,7 +66,7 @@ def create_offline_pivot(df):
         'Less than 24 hours': 'sum',
         'More than 24 hours': 'sum',
         'More than 72 hours': 'sum',
-        'Site Alias': 'count'  # This will give the total number of sites
+        'Site Alias': 'nunique'  # This will give the total number of unique sites
     }).reset_index()
 
     # Rename 'Site Alias' to 'Total'
@@ -79,8 +79,9 @@ def create_offline_pivot(df):
     # Append the total row
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
-    # Return the pivot and total offline site count
+    # Calculate total unique offline site count (sum of unique Site Alias values)
     total_offline_count = int(pivot['Total'].sum())
+    
     return pivot, total_offline_count
 
 # Function to extract the file name's timestamp
@@ -104,16 +105,23 @@ def to_excel(dfs_dict):
 # Streamlit app
 st.title("Alarm and Offline Data Pivot Table Generator")
 
-# Upload Excel file for Alarm Report
+# Upload Excel files for both Alarm Report and Offline Report
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
-if uploaded_alarm_file is not None:
+uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
+
+# Process both reports only after both files are uploaded
+if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
-        # Read the uploaded Excel file, assuming headers start from row 3 (0-indexed)
+        # Read the Alarm Report file, assuming headers start from row 3 (0-indexed)
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         
-        # Extract date and time from the uploaded file name
-        alarm_file_name = uploaded_alarm_file.name
-        formatted_alarm_time = extract_timestamp(alarm_file_name)
+        # Read the Offline Report file, assuming headers start from row 3 (0-indexed)
+        offline_df = pd.read_excel(uploaded_offline_file, header=2)
+        
+        # Extract date and time from the uploaded file names
+        formatted_alarm_time = extract_timestamp(uploaded_alarm_file.name)
+        formatted_offline_time = extract_timestamp(uploaded_offline_file.name)
+        
         alarm_download_file_name = f"RMS Alarm Report {formatted_alarm_time}.xlsx"
         
         # Check if required columns exist for Alarm Report
@@ -150,7 +158,7 @@ if uploaded_alarm_file is not None:
                 alarm_pivot_tables[alarm] = (pivot, total_count)
                 
                 # Display the alarm name
-                st.markdown(f"### {alarm}")  # Main header
+                st.markdown(f"### {alarm}")
                 st.markdown(f"<small><i>till {formatted_alarm_time}</i></small>", unsafe_allow_html=True)
                 st.markdown(f"**Total Count:** {int(total_count)}")
                 st.dataframe(pivot)  # Display the pivot table
@@ -163,21 +171,8 @@ if uploaded_alarm_file is not None:
                 file_name=alarm_download_file_name,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-    except Exception as e:
-        st.error(f"An error occurred while processing the Alarm Report file: {e}")
-
-# Upload Excel file for Offline Report
-uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
-if uploaded_offline_file is not None:
-    try:
-        # Read the uploaded Offline Report file, assuming headers start from row 3 (0-indexed)
-        offline_df = pd.read_excel(uploaded_offline_file, header=2)
         
-        # Extract date and time from the uploaded file name
-        offline_file_name = uploaded_offline_file.name
-        formatted_offline_time = extract_timestamp(offline_file_name)
-        
-        # Create the pivot table for Offline Report
+        # Process the Offline Report
         pivot_offline, total_offline_count = create_offline_pivot(offline_df)
         
         # Display header for Offline Report
@@ -196,5 +191,6 @@ if uploaded_offline_file is not None:
             file_name=f"Offline RMS Report {formatted_offline_time}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+    
     except Exception as e:
-        st.error(f"An error occurred while processing the Offline Report file: {e}")
+        st.error(f"An error occurred while processing the files: {e}")
