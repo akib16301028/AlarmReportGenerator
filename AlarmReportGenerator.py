@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
+from datetime import datetime
 
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
@@ -95,6 +96,13 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
+# Function to calculate days from Last Online Time
+def calculate_days_from_last_online(df):
+    now = datetime.now()
+    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p')
+    df['Days Offline'] = (now - df['Last Online Time']).dt.days
+    return df[['Days Offline', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
+
 # Function to extract the file name's timestamp
 def extract_timestamp(file_name):
     match = re.search(r'\((.*?)\)', file_name)
@@ -107,18 +115,29 @@ def extract_timestamp(file_name):
 def to_excel(dfs_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        for sheet_name, (df, _) in dfs_dict.items():
+        for sheet_name, df in dfs_dict.items():
             # Replace any characters in sheet name that are invalid in Excel
             valid_sheet_name = re.sub(r'[\\/*?:[\]]', '_', sheet_name)[:31]  # Excel sheet name limit is 31 chars
             df.to_excel(writer, sheet_name=valid_sheet_name, index=False)
     return output.getvalue()
 
 # Streamlit app
-st.title("RMS Alarm Report Maker")
+st.title("Alarm and Offline Data Pivot Table Generator")
 
 # Upload Excel files for both Alarm Report and Offline Report
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
 uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
+
+# Define the priority order for alarm names
+alarm_priority = [
+    'Mains Fail',
+    'Battery Low',
+    'DCDB-01 Primary Disconnect',
+    'MDB Fault',
+    'PG Run',
+    'Door Open'
+    # Add more alarm names as needed...
+]
 
 # Process both reports only after both files are uploaded
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
@@ -141,67 +160,66 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Display header for Offline Report
         st.markdown("### Offline Report")
         st.markdown(f"<small><i>till {formatted_offline_time}</i></small>", unsafe_allow_html=True)
-        st.markdown(f"**Total Offline Sites:** {total_offline_count}")
+        st.markdown(f"**Total Offline Count:** {total_offline_count}")
         
         # Display the pivot table for Offline Report
         st.dataframe(pivot_offline)
 
         # Create download button for Offline Report
-        offline_excel_data = to_excel({'Offline Report': (pivot_offline, total_offline_count)})
+        offline_excel_data = to_excel({'Offline Report': pivot_offline})
         st.download_button(
             label="Download Offline Report as Excel",
             data=offline_excel_data,
             file_name=f"Offline RMS Report {formatted_offline_time}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+        # Calculate days from Last Online Time
+        days_offline_df = calculate_days_from_last_online(offline_df)
         
-        # Check if required columns exist for Alarm Report
-        alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name']
-        if not all(col in alarm_df.columns for col in alarm_required_columns):
-            st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
-        else:
-            # Add a new column for Client extracted from Site Alias
-            alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
+        # Create a summary table based on days offline
+        summary_dict = {}
+        for index, row in days_offline_df.iterrows():
+            days = row['Days Offline']
+            if days not in summary_dict:
+                summary_dict[days] = []
+            summary_dict[days].append(row)
+
+        # Display each group of sites under days offline as a table
+        day_keys = list(summary_dict.keys())
+        for i in range(0, len(day_keys), 2):  # Loop through day_keys in pairs
+            cols = st.columns(2)  # Create two columns
+            for j, days in enumerate(day_keys[i:i+2]):
+                with cols[j]:
+                    st.markdown(f"### {days} Days")
+                    
+                    # Create a DataFrame for the sites
+                    summary_df = pd.DataFrame(summary_dict[days], columns=['Site Alias', 'Cluster', 'Zone', 'Last Online Time'])
+                    # Display the DataFrame as a table
+                    st.dataframe(summary_df)
+
+        # Process Alarms Report
+        pivot_dict = {}
+        total_alarm_counts = {}
+        
+        for alarm in alarm_priority:
+            pivot, total_count = create_pivot_table(alarm_df, alarm)
+            pivot_dict[alarm] = pivot
+            total_alarm_counts[alarm] = total_count
             
-            # Drop rows where Client extraction failed
-            alarm_df = alarm_df.dropna(subset=['Client'])
-            
-            # Define priority alarms
-            priority_alarms = [
-                'Mains Fail', 
-                'Battery Low', 
-                'DCDB-01 Primary Disconnect', 
-                'MDB Fault', 
-                'PG Run', 
-                'Door Open'
-            ]
-            
-            # Get unique alarms, including non-priority ones
-            all_alarms = list(alarm_df['Alarm Name'].unique())
-            non_priority_alarms = [alarm for alarm in all_alarms if alarm not in priority_alarms]
-            ordered_alarms = priority_alarms + sorted(non_priority_alarms)
-            
-            # Dictionary to store pivot tables and total counts
-            alarm_pivot_tables = {}
-            
-            for alarm in ordered_alarms:
-                pivot, total_count = create_pivot_table(alarm_df, alarm)
-                alarm_pivot_tables[alarm] = (pivot, total_count)
-                
-                # Display the alarm name
-                st.markdown(f"### {alarm}")
-                st.markdown(f"<small><i>till {formatted_alarm_time}</i></small>", unsafe_allow_html=True)
-                st.markdown(f"**Total Count:** {int(total_count)}")
-                st.dataframe(pivot)  # Display the pivot table
-            
-            # Create download button for Alarm Report
-            alarm_excel_data = to_excel(alarm_pivot_tables)
-            st.download_button(
-                label="Download All Alarm Pivot Tables as Excel",
-                data=alarm_excel_data,
-                file_name=alarm_download_file_name,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-    
+            # Display each pivot table
+            st.markdown(f"### {alarm} Alarm Report")
+            st.markdown(f"**Total Count:** {total_count}")
+            st.dataframe(pivot)
+
+        # Combine all alarm pivot tables into one Excel file
+        alarm_excel_data = to_excel(pivot_dict)
+        st.download_button(
+            label="Download Alarm Reports as Excel",
+            data=alarm_excel_data,
+            file_name=alarm_download_file_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
     except Exception as e:
-        st.error(f"An error occurred while processing the files: {e}")
+        st.error(f"An error occurred: {e}")
