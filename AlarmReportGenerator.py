@@ -183,6 +183,12 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
             alarm_names = alarm_df['Alarm Name'].unique()
 
+            # Add time filter for all alarms
+            start_date, end_date = st.date_input("Select Date Range for Alarms", [])
+            if start_date and end_date:
+                alarm_df['Alarm Time'] = pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p')
+                alarm_df = alarm_df[(alarm_df['Alarm Time'] >= start_date) & (alarm_df['Alarm Time'] <= end_date)]
+
             # Define the priority order for the alarm names
             priority_order = [
                 'Mains Fail',
@@ -193,34 +199,15 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 'Door Open'
             ]
 
-            # Separate prioritized alarms from the rest
-            prioritized_alarms = [name for name in priority_order if name in alarm_names]
-            non_prioritized_alarms = [name for name in alarm_names if name not in priority_order]
-
-            # Combine both lists to maintain the desired order
-            ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
+            # Create a list of available alarms for selection
+            ordered_alarm_names = sorted(alarm_names)
 
             # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
 
-            # Add a time filter for the "DCDB-01 Primary Disconnect" alarm
-            dcdb_time_filter = None
-            if 'DCDB-01 Primary Disconnect' in ordered_alarm_names:
-                dcdb_time_filter = st.date_input("Select Date Range for DCDB-01 Primary Disconnect", [])
-
             for alarm_name in ordered_alarm_names:
                 data = create_pivot_table(alarm_df, alarm_name)
-
-                # Apply time filtering for DCDB-01 Primary Disconnect
-                if alarm_name == 'DCDB-01 Primary Disconnect' and dcdb_time_filter:
-                    # Filter the DataFrame based on the selected date range
-                    filtered_data = alarm_df[
-                        (alarm_df['Alarm Name'] == alarm_name) &
-                        (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(dcdb_time_filter))
-                    ]
-                    alarm_data[alarm_name] = create_pivot_table(filtered_data, alarm_name)
-                else:
-                    alarm_data[alarm_name] = data
+                alarm_data[alarm_name] = data
 
             # Display each pivot table for the current alarms
             for alarm_name, (pivot, total_count) in alarm_data.items():
@@ -229,16 +216,16 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
                 st.dataframe(pivot)
 
-            # Prepare download for Current Alarms Report only if there is data
-            if alarm_data:
-                current_alarm_excel_data = to_excel({alarm_name: data[0] for alarm_name, data in alarm_data.items()})
-                st.download_button(
-                    label="Download Current Alarms Report",
-                    data=current_alarm_excel_data,
-                    file_name=f"Current Alarms Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            else:
-                st.warning("No current alarm data available for export.")
+            # Prepare download for Current Alarm Report
+            current_alarm_report_data = {name: data[0] for name, data in alarm_data.items()}
+            current_alarm_excel_data = to_excel(current_alarm_report_data)
+
+            st.download_button(
+                label="Download Current Alarm Report",
+                data=current_alarm_excel_data,
+                file_name=f"Current Alarm Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
