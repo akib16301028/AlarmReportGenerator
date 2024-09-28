@@ -151,7 +151,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 summary_data.append([duration, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
         
         # Display the summary table
-        summary_df = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name (Site Alias)", "Cluster", "Zone", "Last Online Time"])
+        summary_df = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name", "Cluster", "Zone", "Last Online Time"])
         st.markdown("### Summary of Offline Sites")
         st.dataframe(summary_df)
 
