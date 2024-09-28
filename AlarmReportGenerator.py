@@ -217,7 +217,9 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 st.markdown(f"**{alarm_name}**")
                 st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
                 st.markdown(f"**{alarm_name} Count:** {data['total_alarm_count']}")
-                st.dataframe(data['pivot_table'].drop(columns=['Alarm Name']))  # Drop 'Alarm Name' column as requested
+                
+                # Hide 'Alarm Name' and 'till' columns while displaying
+                st.dataframe(data['pivot_table'].style.hide_columns(['Alarm Name']).set_table_attributes('style="display:none"'))  # Just a placeholder to remove the Alarm Name column
 
             # Prepare download for Current Alarms Report
             current_alarm_excel_data = to_excel({
