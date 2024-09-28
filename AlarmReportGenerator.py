@@ -27,23 +27,23 @@ def create_pivot_table(df, alarm_name):
         fill_value=0
     )
     
-    # Flatten the columns
+    # Flatten the columns and remove 'Client' column
     pivot = pivot.reset_index()
     
     # Calculate Total per row
-    client_columns = [col for col in pivot.columns if col not in ['Cluster', 'Zone']]
-    pivot['Total'] = pivot[client_columns].sum(axis=1)
+    total_columns = [col for col in pivot.columns if col not in ['Cluster', 'Zone']]
+    pivot['Total'] = pivot[total_columns].sum(axis=1)
     
     # Calculate Total per client and overall total
-    total_row = pivot[client_columns + ['Total']].sum().to_frame().T
+    total_row = pivot[total_columns + ['Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
     # Append the total row
     pivot = pd.concat([pivot, total_row], ignore_index=True)
-    
-    # Calculate Total Alarm Count
-    total_alarm_count = pivot['Total'].iloc[-1]
-    
+
+    # Remove the 'Client' level from columns if it exists
+    pivot.columns = pivot.columns.droplevel(0)  # Drop the first level if multi-index
+
     # Merge same Cluster cells (simulate merged cells)
     last_cluster = None
     for i in range(len(pivot)):
@@ -52,7 +52,7 @@ def create_pivot_table(df, alarm_name):
         else:
             last_cluster = pivot.at[i, 'Cluster']
     
-    return pivot, total_alarm_count
+    return pivot, total_row['Total']
 
 # Function to convert multiple DataFrames to Excel with separate sheets
 def to_excel(dfs_dict):
@@ -107,27 +107,26 @@ if uploaded_file is not None:
                 pivot, total_count = create_pivot_table(df, alarm)
                 pivot_tables[alarm] = (pivot, total_count)
                 
-                # Use a beta container to keep headers and alarm count visible
-                with st.container():
-                    st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
-                    st.markdown(f"**Total Alarm Count:** {int(total_count)}")
+                # Display headers and total counts
+                st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
+                st.markdown(f"**Total Alarm Count:** {int(total_count)}")
+                
+                # Render pivot table as HTML
+                html = pivot.to_html(index=False, border=0)
+                st.markdown(html, unsafe_allow_html=True)
+
+                # Add a button to copy the table to clipboard
+                copy_button = st.button(f"Copy {alarm} Table to Clipboard", key=alarm)
+                if copy_button:
+                    st.markdown(
+                        f"""<script>
+                        navigator.clipboard.writeText(`{html}`);
+                        alert('Table copied to clipboard!');
+                        </script>""",
+                        unsafe_allow_html=True
+                    )
                     
-                    # Render pivot table as HTML
-                    html = pivot.to_html(index=False, border=0)
-                    st.markdown(html, unsafe_allow_html=True)
-
-                    # Add a button to copy the table to clipboard
-                    copy_button = st.button(f"Copy {alarm} Table to Clipboard", key=alarm)
-                    if copy_button:
-                        st.markdown(
-                            f"""<script>
-                            navigator.clipboard.writeText(`{html}`);
-                            alert('Table copied to clipboard!');
-                            </script>""",
-                            unsafe_allow_html=True
-                        )
-
-                    st.markdown("---")  # Separator between tables
+                st.markdown("---")  # Separator between tables
             
             # Create download button
             excel_data = to_excel(pivot_tables)
