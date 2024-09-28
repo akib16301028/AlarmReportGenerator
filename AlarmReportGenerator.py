@@ -146,38 +146,61 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.markdown("### Summary of Offline Sites")
         st.dataframe(summary_df)
 
-        # Check for required columns in Alarm Report
-        alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name']
-        if not all(col in alarm_df.columns for col in alarm_required_columns):
-            st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
-        else:
-            alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
-            alarm_df = alarm_df[~alarm_df['Client'].isnull()]
-            alarm_names = alarm_df['Alarm Name'].unique()
+        # ... (previous code)
 
-            # Create a dictionary to store all pivot tables
-            alarm_data = {}
-            for alarm_name in alarm_names:
-                pivot_table, total_alarm_count = create_pivot_table(alarm_df, alarm_name)
-                alarm_data[alarm_name] = (pivot_table, total_alarm_count)
+# Check for required columns in Alarm Report
+alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name']
+if not all(col in alarm_df.columns for col in alarm_required_columns):
+    st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
+else:
+    alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
+    alarm_df = alarm_df[~alarm_df['Client'].isnull()]
+    alarm_names = alarm_df['Alarm Name'].unique()
 
-            # Combine all pivot tables into one Excel file
-            combined_alarm_df = pd.concat([pivot_table.assign(Alarm=alarm_name) for alarm_name, (pivot_table, _) in alarm_data.items()], ignore_index=True)
+    # Define the priority order for the alarm names
+    priority_order = [
+        'Mains Fail',
+        'Battery Low',
+        'DCDB-01 Primary Disconnect',
+        'PG Run',
+        'MDB Fault',
+        'Door Open'
+    ]
 
-            # Display each alarm report
-            for alarm_name, (pivot_table, total_alarm_count) in alarm_data.items():
-                st.markdown(f"### {alarm_name}")
-                st.markdown(f"**Total Alarm Count:** {total_alarm_count}")
-                st.dataframe(pivot_table)
+    # Separate prioritized alarms from the rest
+    prioritized_alarms = [name for name in priority_order if name in alarm_names]
+    non_prioritized_alarms = [name for name in alarm_names if name not in priority_order]
 
-            # Create download button for combined Alarm Report
-            combined_alarm_excel_data = to_excel({f"Combined Alarm Report": (combined_alarm_df, None)})
-            st.download_button(
-                label="Download All Alarms Report as Excel",
-                data=combined_alarm_excel_data,
-                file_name=f"All_Alarms_Report_{formatted_alarm_time}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+    # Combine both lists to maintain the desired order
+    ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
+
+    # Create a dictionary to store all pivot tables
+    alarm_data = {}
+    for alarm_name in ordered_alarm_names:
+        pivot_table, total_alarm_count = create_pivot_table(alarm_df, alarm_name)
+        alarm_data[alarm_name] = (pivot_table, total_alarm_count)
+
+    # Combine all pivot tables into one Excel file
+    combined_alarm_df = pd.concat([pivot_table.assign(Alarm=alarm_name) for alarm_name, (pivot_table, _) in alarm_data.items()], ignore_index=True)
+
+    # Display each alarm report
+    for alarm_name in ordered_alarm_names:
+        pivot_table, total_alarm_count = alarm_data[alarm_name]
+        st.markdown(f"### {alarm_name}")
+        st.markdown(f"**Total Alarm Count:** {total_alarm_count}")
+        st.dataframe(pivot_table)
+
+    # Create download button for combined Alarm Report
+    combined_alarm_excel_data = to_excel({f"Combined Alarm Report": (combined_alarm_df, None)})
+    st.download_button(
+        label="Download All Alarms Report as Excel",
+        data=combined_alarm_excel_data,
+        file_name=f"All_Alarms_Report_{formatted_alarm_time}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# ... (subsequent code)
+
 
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
