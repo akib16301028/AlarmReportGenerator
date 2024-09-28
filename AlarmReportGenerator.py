@@ -77,56 +77,43 @@ if uploaded_file is not None:
             # Drop rows where Client extraction failed
             df = df.dropna(subset=['Client'])
             
-            # Get unique alarms
-            unique_alarms = df['Alarm Name'].unique()
+            # Define priority alarms
+            priority_alarms = [
+                'Mains Fail', 
+                'Battery Low', 
+                'DCDB-01 Primary Disconnect', 
+                'MDB Fault', 
+                'PG Run', 
+                'Door Open'
+            ]
             
-            if len(unique_alarms) == 0:
-                st.warning("No alarms found in the uploaded data.")
-            else:
-                # Dictionary to store pivot tables and total counts
-                pivot_tables = {}
+            # Get unique alarms, including non-priority ones
+            all_alarms = list(df['Alarm Name'].unique())
+            non_priority_alarms = [alarm for alarm in all_alarms if alarm not in priority_alarms]
+            ordered_alarms = priority_alarms + sorted(non_priority_alarms)
+            
+            # Dictionary to store pivot tables and total counts
+            pivot_tables = {}
+            
+            for alarm in ordered_alarms:
+                pivot, total_count = create_pivot_table(df, alarm)
+                pivot_tables[alarm] = (pivot, total_count)
                 
-                for alarm in unique_alarms:
-                    pivot, total_count = create_pivot_table(df, alarm)
-                    pivot_tables[alarm] = (pivot, total_count)
-                    
-                    # Display headers and total counts
-                    st.markdown(f"### Alarm Name: {alarm}")
-                    st.markdown(f"**Total Alarm Count:** {int(total_count)}")
-                    
-                    # Display pivot table
-                    st.dataframe(pivot)
-                    st.markdown("---")  # Separator between tables
+                # Display headers and total counts
+                st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
+                st.markdown(f"**Total Alarm Count:** {int(total_count)}")
                 
-                # Function to convert multiple DataFrames to Excel with formatted headers
-                def format_excel(dfs_dict):
-                    output = BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        for alarm, (df, total_count) in dfs_dict.items():
-                            # Replace invalid sheet name characters and limit to 31 chars
-                            sheet_name = re.sub(r'[\\/*?:[\]]', '_', alarm)[:31]
-                            # Write Alarm Name and Total Alarm Count above the table
-                            workbook = writer.book
-                            worksheet = workbook.create_sheet(title=sheet_name)
-                            
-                            # Write headers
-                            worksheet.cell(row=1, column=1, value=f"Alarm Name: {alarm}")
-                            worksheet.cell(row=2, column=1, value=f"Total Alarm Count: {int(total_count)}")
-                            
-                            # Write the DataFrame starting from row 4
-                            for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), start=4):
-                                for c_idx, value in enumerate(row, start=1):
-                                    worksheet.cell(row=r_idx, column=c_idx, value=value)
-                    
-                    return output.getvalue()
-                
-                # Create download button
-                excel_data = to_excel(pivot_tables)
-                st.download_button(
-                    label="Download All Pivot Tables as Excel",
-                    data=excel_data,
-                    file_name="pivot_tables_output.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                # Display pivot table
+                st.dataframe(pivot)
+                st.markdown("---")  # Separator between tables
+            
+            # Create download button
+            excel_data = to_excel(pivot_tables)
+            st.download_button(
+                label="Download All Pivot Tables as Excel",
+                data=excel_data,
+                file_name="pivot_tables_output.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
     except Exception as e:
         st.error(f"An error occurred while processing the file: {e}")
