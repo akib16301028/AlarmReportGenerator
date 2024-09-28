@@ -44,6 +44,14 @@ def create_pivot_table(df, alarm_name):
     # Calculate Total Alarm Count
     total_alarm_count = pivot['Total'].iloc[-1]
     
+    # Merge same Cluster cells (simulate merged cells)
+    last_cluster = None
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
+        else:
+            last_cluster = pivot.at[i, 'Cluster']
+    
     return pivot, total_alarm_count
 
 # Function to convert multiple DataFrames to Excel with separate sheets
@@ -99,13 +107,12 @@ if uploaded_file is not None:
                 pivot, total_count = create_pivot_table(df, alarm)
                 pivot_tables[alarm] = (pivot, total_count)
                 
-                # Display headers and total counts
-                st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
-                st.markdown(f"**Total Alarm Count:** {int(total_count)}")
-                
-                # Display pivot table
-                st.dataframe(pivot)
-                st.markdown("---")  # Separator between tables
+                # Use a beta container to keep headers and alarm count visible
+                with st.container():
+                    st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
+                    st.markdown(f"**Total Alarm Count:** {int(total_count)}")
+                    st.dataframe(pivot)  # Display the pivot table
+                    st.markdown("---")  # Separator between tables
             
             # Create download button
             excel_data = to_excel(pivot_tables)
