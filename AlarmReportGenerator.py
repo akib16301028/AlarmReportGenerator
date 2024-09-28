@@ -204,12 +204,18 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Combine all pivot tables into one Excel file
             combined_alarm_df = pd.concat([pivot_table.assign(Alarm=alarm_name) for alarm_name, (pivot_table, _) in alarm_data.items()], ignore_index=True)
 
-            # Display each alarm report
-            for alarm_name in ordered_alarm_names:
-                pivot_table, total_alarm_count = alarm_data[alarm_name]
-                st.markdown(f"### {alarm_name}")
-                st.markdown(f"**Total Alarm Count:** {total_alarm_count}")
-                st.dataframe(pivot_table)
+           # Display each alarm report
+for alarm_name in ordered_alarm_names:
+    pivot_table, total_alarm_count = alarm_data[alarm_name]
+    
+    # Extract the formatted alarm time from the filename
+    formatted_alarm_time = extract_timestamp(uploaded_alarm_file.name).strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Create the header with italic smaller text
+    st.markdown(f"### {alarm_name}")
+    st.markdown(f"<small><i>till {formatted_alarm_time}</i></small>", unsafe_allow_html=True)
+    st.markdown(f"**Total Alarm Count:** {total_alarm_count}")
+    st.dataframe(pivot_table)
 
             # Create download button for combined Alarm Report
             combined_alarm_excel_data = to_excel({f"Combined Alarm Report": (combined_alarm_df, None)})
