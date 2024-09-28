@@ -3,6 +3,9 @@ import pandas as pd
 import re
 from io import BytesIO
 
+# Set page config for wider layout
+st.set_page_config(layout="wide")
+
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
     match = re.search(r'\((.*?)\)', site_alias)
@@ -103,8 +106,8 @@ if uploaded_file is not None:
                 st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
                 st.markdown(f"**Total Alarm Count:** {int(total_count)}")
                 
-                # Display pivot table
-                st.dataframe(pivot)
+                # Display pivot table without scrolling
+                st.table(pivot)  # Use st.table() for static table display
                 st.markdown("---")  # Separator between tables
             
             # Create download button
