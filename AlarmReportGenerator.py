@@ -44,9 +44,6 @@ def create_pivot_table(df, alarm_name):
     # Append the total row
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
-    # Calculate Total Alarm Count
-    total_alarm_count = pivot['Total'].iloc[-1]
-    
     # Visually merge cells in the 'Cluster' column by replacing duplicate entries with empty strings
     last_cluster = None
     for i in range(len(pivot)):
@@ -55,9 +52,11 @@ def create_pivot_table(df, alarm_name):
         else:
             last_cluster = pivot.at[i, 'Cluster']
     
-    # Limit decimal places for display
-    pivot[client_columns] = pivot[client_columns].astype(int)  # Convert to integer
-    pivot['Total'] = pivot['Total'].astype(int)  # Convert total to integer
+    # Convert all counts to integers
+    pivot[client_columns + ['Total']] = pivot[client_columns + ['Total']].astype(int)
+
+    # Calculate Total Alarm Count
+    total_alarm_count = pivot['Total'].iloc[-1]
     
     return pivot, total_alarm_count
 
@@ -73,19 +72,6 @@ def to_excel(dfs_dict):
 
 # Streamlit app
 st.title("Alarm Data Pivot Table Generator")
-
-# Custom CSS for compact table
-st.markdown(
-    """
-    <style>
-    .streamlit-table {
-        font-size: 12px; /* Adjust font size */
-        table-layout: auto; /* Adjust table layout */
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 
 # Upload Excel file
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
@@ -131,8 +117,8 @@ if uploaded_file is not None:
                 st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
                 st.markdown(f"**Total Alarm Count:** {int(total_count)}")
                 
-                # Display pivot table without scrolling
-                st.table(pivot.style.set_table_attributes('class="streamlit-table"'))  # Compact table display
+                # Display pivot table in a more compact manner
+                st.dataframe(pivot.style.hide_index(), use_container_width=True)  # Use dataframe with hidden index
                 st.markdown("---")  # Separator between tables
             
             # Create download button
