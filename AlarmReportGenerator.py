@@ -27,15 +27,15 @@ def create_pivot_table(df, alarm_name):
         fill_value=0
     )
     
-    # Flatten the columns and remove 'Client' column
+    # Flatten the columns and remove 'Client' level if it exists
     pivot = pivot.reset_index()
     
     # Calculate Total per row
-    total_columns = [col for col in pivot.columns if col not in ['Cluster', 'Zone']]
-    pivot['Total'] = pivot[total_columns].sum(axis=1)
+    client_columns = [col for col in pivot.columns if col not in ['Cluster', 'Zone']]
+    pivot['Total'] = pivot[client_columns].sum(axis=1)
     
     # Calculate Total per client and overall total
-    total_row = pivot[total_columns + ['Total']].sum().to_frame().T
+    total_row = pivot[client_columns + ['Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
     # Append the total row
@@ -110,7 +110,6 @@ if uploaded_file is not None:
                 # Create an expander for each alarm
                 with st.expander(f"{alarm} (Total Count: {int(total_count)})", expanded=False):
                     st.write(pivot)  # Display the pivot table
-                    st.markdown("---")  # Separator between tables
             
             # Create download button
             excel_data = to_excel(pivot_tables)
