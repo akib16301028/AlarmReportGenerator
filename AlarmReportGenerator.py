@@ -201,25 +201,32 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
 
             # Create a dictionary to store all pivot tables for current alarms
-            alarm_data = {}
-            for alarm_name in ordered_alarm_names:
-                pivot, total_count = create_pivot_table(alarm_df, alarm_name)
-                alarm_data[alarm_name] = (pivot, total_count)
+alarm_data = {}
+for alarm_name in ordered_alarm_names:
+    pivot, total_count = create_pivot_table(alarm_df, alarm_name)
+    
+    # Only add the pivot table if it contains data
+    if not pivot.empty:
+        alarm_data[alarm_name] = (pivot, total_count)
 
-                # Display the alarm header with required formatting
-                st.markdown(f"### <b>{alarm_name}</b>", unsafe_allow_html=True)
-                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-                st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
-                st.dataframe(pivot)
+        # Display the alarm header with required formatting
+        st.markdown(f"### <b>{alarm_name}</b>", unsafe_allow_html=True)
+        st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
+        st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
+        st.dataframe(pivot)
 
-            # Prepare download for Current Alarms Report
-            current_alarm_excel_data = to_excel(alarm_data)
-            st.download_button(
-                label="Download Current Alarms Report",
-                data=current_alarm_excel_data,
-                file_name=f"Current Alarms Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+# Prepare download for Current Alarms Report only if there is data
+if alarm_data:
+    current_alarm_excel_data = to_excel(alarm_data)
+    st.download_button(
+        label="Download Current Alarms Report",
+        data=current_alarm_excel_data,
+        file_name=f"Current Alarms Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+else:
+    st.warning("No current alarm data available for export.")
+)
 
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
