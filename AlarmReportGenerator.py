@@ -81,9 +81,9 @@ def create_offline_pivot(df):
     
     # Append the total row
     pivot = pd.concat([pivot, total_row], ignore_index=True)
-    
-    # Calculate total unique offline site count (sum of unique Site Alias values)
-    total_offline_count = int(pivot['Total'].sum())
+
+    # Calculate total offline count from the last cell of the Total column
+    total_offline_count = int(pivot['Total'].iloc[-1])  # Get the last cell of the Total column
     
     return pivot, total_offline_count
 
@@ -126,6 +126,26 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         formatted_offline_time = extract_timestamp(uploaded_offline_file.name)
         
         alarm_download_file_name = f"RMS Alarm Report {formatted_alarm_time}.xlsx"
+        
+        # Process the Offline Report first
+        pivot_offline, total_offline_count = create_offline_pivot(offline_df)
+        
+        # Display header for Offline Report
+        st.markdown("### Offline Report")
+        st.markdown(f"<small><i>till {formatted_offline_time}</i></small>", unsafe_allow_html=True)
+        st.markdown(f"**Total Offline Count:** {total_offline_count}")
+        
+        # Display the pivot table for Offline Report
+        st.dataframe(pivot_offline)
+
+        # Create download button for Offline Report
+        offline_excel_data = to_excel({'Offline Report': (pivot_offline, total_offline_count)})
+        st.download_button(
+            label="Download Offline Report as Excel",
+            data=offline_excel_data,
+            file_name=f"Offline RMS Report {formatted_offline_time}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
         # Check if required columns exist for Alarm Report
         alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name']
@@ -174,26 +194,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 file_name=alarm_download_file_name,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-        
-        # Process the Offline Report
-        pivot_offline, total_offline_count = create_offline_pivot(offline_df)
-        
-        # Display header for Offline Report
-        st.markdown("### Offline Report")
-        st.markdown(f"<small><i>till {formatted_offline_time}</i></small>", unsafe_allow_html=True)
-        st.markdown(f"**Total Offline Count:** {total_offline_count}")
-        
-        # Display the pivot table for Offline Report
-        st.dataframe(pivot_offline)
-
-        # Create download button for Offline Report
-        offline_excel_data = to_excel({'Offline Report': (pivot_offline, total_offline_count)})
-        st.download_button(
-            label="Download Offline Report as Excel",
-            data=offline_excel_data,
-            file_name=f"Offline RMS Report {formatted_offline_time}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
     
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
