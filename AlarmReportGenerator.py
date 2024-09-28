@@ -1,181 +1,102 @@
-import streamlit as st
-import pandas as pd
-import re
-from io import BytesIO
-from datetime import datetime
-
-# Function to extract client name from Site Alias
-def extract_client(site_alias):
-    match = re.search(r'\((.*?)\)', site_alias)
-    return match.group(1) if match else None
-
-# Function to create pivot table for a specific alarm
-def create_pivot_table(df, alarm_name):
-    alarm_df = df[df['Alarm Name'] == alarm_name].copy()
-    
-    if alarm_name == 'DCDB-01 Primary Disconnect':
-        alarm_df = alarm_df[~alarm_df['RMS Station'].str.startswith('L')]
-    
-    pivot = pd.pivot_table(
-        alarm_df,
-        index=['Cluster', 'Zone'],
-        columns='Client',
-        values='Site Alias',
-        aggfunc='count',
-        fill_value=0
-    )
-    
-    pivot = pivot.reset_index()
-    client_columns = [col for col in pivot.columns if col not in ['Cluster', 'Zone']]
-    pivot['Total'] = pivot[client_columns].sum(axis=1)
-    
-    total_row = pivot[client_columns + ['Total']].sum().to_frame().T
-    total_row[['Cluster', 'Zone']] = ['Total', '']
-    
-    pivot = pd.concat([pivot, total_row], ignore_index=True)
-    
-    total_alarm_count = pivot['Total'].iloc[-1]
-    
-    last_cluster = None
-    for i in range(len(pivot)):
-        if pivot.at[i, 'Cluster'] == last_cluster:
-            pivot.at[i, 'Cluster'] = ''
-        else:
-            last_cluster = pivot.at[i, 'Cluster']
-    
-    return pivot, total_alarm_count
-
-# Function to create pivot table for offline report
-def create_offline_pivot(df):
-    df = df.drop_duplicates()
-    
-    df['Less than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'Less than 24 hours' in x else 0)
-    df['More than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 24 hours' in x and '72' not in x else 0)
-    df['More than 72 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 72 hours' in x else 0)
-    
-    pivot = df.groupby(['Cluster', 'Zone']).agg({
-        'Less than 24 hours': 'sum',
-        'More than 24 hours': 'sum',
-        'More than 72 hours': 'sum',
-        'Site Alias': 'nunique'
-    }).reset_index()
-
-    pivot = pivot.rename(columns={'Site Alias': 'Total'})
-    
-    total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
-    total_row[['Cluster', 'Zone']] = ['Total', '']
-    
-    pivot = pd.concat([pivot, total_row], ignore_index=True)
-
-    total_offline_count = int(pivot['Total'].iloc[-1])
-
-    last_cluster = None
-    for i in range(len(pivot)):
-        if pivot.at[i, 'Cluster'] == last_cluster:
-            pivot.at[i, 'Cluster'] = ''
-        else:
-            last_cluster = pivot.at[i, 'Cluster']
-    
-    return pivot, total_offline_count
-
-# Function to calculate days from Last Online Time
-def calculate_days_from_last_online(df):
-    now = datetime.now()
-    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p')
-    df['Days Offline'] = (now - df['Last Online Time']).dt.days
-    return df[['Days Offline', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
-
-# Function to extract the file name's timestamp
-def extract_timestamp(file_name):
-    match = re.search(r'\((.*?)\)', file_name)
-    if match:
-        timestamp_str = match.group(1)
-        return timestamp_str.replace('_', ':')
-    return "Unknown Time"
-
-# Function to convert multiple DataFrames to Excel with separate sheets
-def to_excel(dfs_dict):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        for sheet_name, (df, _) in dfs_dict.items():
-            valid_sheet_name = re.sub(r'[\\/*?:[\]]', '_', sheet_name)[:31]
-            df.to_excel(writer, sheet_name=valid_sheet_name, index=False)
-    return output.getvalue()
-
 # Streamlit app
 st.title("Alarm and Offline Data Pivot Table Generator")
 
+# Upload Excel files for both Alarm Report and Offline Report
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
 uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
+# Define priority for alarms (you can customize this list as needed)
+alarm_priority = {
+    'DCDB-01 Primary Disconnect': 1,
+    'Mains Fail': 2,  # replace with actual alarm names and priority
+    'Battery Low': 3,
+     'PG Run': 4,
+'MDB Fault': 5,
+'Door Open': 6
+    # Add other alarms and their priorities
+}
+
+# Process both reports only after both files are uploaded
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
+        # Read the Alarm Report file, assuming headers start from row 3 (0-indexed)
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
+        
+        # Read the Offline Report file, assuming headers start from row 3 (0-indexed)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
-
+        
+        # Extract date and time from the uploaded file names
         formatted_alarm_time = extract_timestamp(uploaded_alarm_file.name)
         formatted_offline_time = extract_timestamp(uploaded_offline_file.name)
-
-        # Process the Offline Report
+        
+        alarm_download_file_name = f"RMS Alarm Report {formatted_alarm_time}.xlsx"
+        
+        # Process the Offline Report first
         pivot_offline, total_offline_count = create_offline_pivot(offline_df)
-
+        
+        # Display header for Offline Report
         st.markdown("### Offline Report")
         st.markdown(f"<small><i>till {formatted_offline_time}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
+        
+        # Display the pivot table for Offline Report
         st.dataframe(pivot_offline)
 
         # Calculate days from Last Online Time
         days_offline_df = calculate_days_from_last_online(offline_df)
-
+        
         # Create a summary table based on days offline
         summary_dict = {}
         for index, row in days_offline_df.iterrows():
             days = row['Days Offline']
-            if days not in summary_dict:
-                summary_dict[days] = []
-            summary_dict[days].append(row)
+            # Group days -1, 0, and 1 under "1 or Less than 1 day"
+            if days in [-1, 0, 1]:
+                key = "1 or Less than 1 day"
+            else:
+                key = days
+            if key not in summary_dict:
+                summary_dict[key] = []
+            summary_dict[key].append(row)
 
-        # Prepare DataFrame for display
-        summary_data = []
-        for days, sites in summary_dict.items():
-            for site in sites:
-                summary_data.append([days, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
-        
         # Display the summary table
-        summary_df = pd.DataFrame(summary_data, columns=["Days Offline", "Site Name (Site Alias)", "Cluster", "Zone", "Last Online Time"])
-        st.markdown("### Summary of Offline Sites")
-        st.dataframe(summary_df)
+        for days, sites in summary_dict.items():
+            st.markdown(f"### {days} Days")
+            st.markdown("Site Name (Site Alias) Cluster Zone Last Online Time")
+            for site in sites:
+                st.markdown(f"{site['Site Alias']} {site['Cluster']} {site['Zone']} {site['Last Online Time']}")
 
-        # Check for required columns in Alarm Report
+        # Check if required columns exist for Alarm Report
         alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name']
         if not all(col in alarm_df.columns for col in alarm_required_columns):
             st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
         else:
+            # Add a new column for Client extracted from Site Alias
             alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
+            
+            # Drop rows where Client extraction failed
             alarm_df = alarm_df[~alarm_df['Client'].isnull()]
-            alarm_names = alarm_df['Alarm Name'].unique()
-
-            # Create a dictionary to store all pivot tables
+            
+            # Get the list of unique alarm names and sort them based on priority
+            alarm_names = sorted(alarm_df['Alarm Name'].unique(), key=lambda x: alarm_priority.get(x, float('inf')))
+            
+            # Create a dictionary to store the pivot tables and total alarm counts
             alarm_data = {}
             for alarm_name in alarm_names:
                 pivot_table, total_alarm_count = create_pivot_table(alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot_table, total_alarm_count)
-
-            # Combine all pivot tables into one Excel file
-            combined_alarm_df = pd.concat([pivot_table.assign(Alarm=alarm_name) for alarm_name, (pivot_table, _) in alarm_data.items()], ignore_index=True)
-
+                
             # Display each alarm report
             for alarm_name, (pivot_table, total_alarm_count) in alarm_data.items():
                 st.markdown(f"### {alarm_name}")
                 st.markdown(f"**Total Alarm Count:** {total_alarm_count}")
                 st.dataframe(pivot_table)
-
-            # Create download button for combined Alarm Report
-            combined_alarm_excel_data = to_excel({f"Combined Alarm Report": (combined_alarm_df, None)})
+                
+            # Create a single download button for all alarms
+            all_alarms_excel_data = to_excel(alarm_data)
             st.download_button(
                 label="Download All Alarms Report as Excel",
-                data=combined_alarm_excel_data,
-                file_name=f"All_Alarms_Report_{formatted_alarm_time}.xlsx",
+                data=all_alarms_excel_data,
+                file_name=alarm_download_file_name,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
