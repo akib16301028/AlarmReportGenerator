@@ -47,58 +47,15 @@ def create_pivot_table(df, alarm_name):
     # Calculate Total Alarm Count
     total_alarm_count = pivot['Total'].iloc[-1]
     
-    return pivot, total_alarm_count
-
-# Function to generate HTML table with cell merging and compact styling
-def generate_html_table(pivot):
-    # Create a blank list for storing the HTML content
-    html = []
-    
-    # Add the opening table tag and some inline CSS for compactness
-    html.append('<table style="border-collapse: collapse; width: 100%;">')
-    html.append('<thead>')
-    
-    # Add table headers
-    html.append('<tr>')
-    for col in pivot.columns:
-        html.append(f'<th style="border: 1px solid black; padding: 4px;">{col}</th>')
-    html.append('</tr>')
-    html.append('</thead>')
-    html.append('<tbody>')
-    
-    # Create a variable to store the last value of the "Cluster" column to merge cells
+    # Visually merge cells in the 'Cluster' column by replacing duplicate entries with empty strings
     last_cluster = None
-    rowspan_count = 0
-    
-    # Loop through each row in the pivot table
-    for idx, row in pivot.iterrows():
-        html.append('<tr>')
-        
-        # Handle Cluster column with merging
-        current_cluster = row['Cluster']
-        if current_cluster != last_cluster:
-            # New cluster, write it and reset rowspan
-            if rowspan_count > 0:
-                html[-rowspan_count - 1] = html[-rowspan_count - 1].replace(f'rowspan="{rowspan_count}"', f'rowspan="{rowspan_count + 1}"')
-            rowspan_count = 1
-            html.append(f'<td rowspan="{rowspan_count}" style="border: 1px solid black; padding: 4px;">{current_cluster}</td>')
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
         else:
-            rowspan_count += 1
-
-        # Add the Zone column and the rest of the client columns
-        html.append(f'<td style="border: 1px solid black; padding: 4px;">{row["Zone"]}</td>')
-        for col in pivot.columns[2:]:
-            html.append(f'<td style="border: 1px solid black; padding: 4px; text-align: center;">{row[col]}</td>')
-
-        html.append('</tr>')
-
-        # Update last_cluster for the next iteration
-        last_cluster = current_cluster
-
-    # Close the table
-    html.append('</tbody></table>')
+            last_cluster = pivot.at[i, 'Cluster']
     
-    return ''.join(html)
+    return pivot, total_alarm_count
 
 # Function to convert multiple DataFrames to Excel with separate sheets
 def to_excel(dfs_dict):
@@ -157,10 +114,8 @@ if uploaded_file is not None:
                 st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
                 st.markdown(f"**Total Alarm Count:** {int(total_count)}")
                 
-                # Generate HTML table and display it
-                html_table = generate_html_table(pivot)
-                st.markdown(html_table, unsafe_allow_html=True)
-                
+                # Display pivot table without scrolling
+                st.table(pivot)  # Use st.table() for static table display
                 st.markdown("---")  # Separator between tables
             
             # Create download button
