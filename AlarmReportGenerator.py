@@ -5,8 +5,11 @@ from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
 
-# Function to process the uploaded file
-def process_file(uploaded_file):
+# Streamlit file uploader
+st.title("Excel Alarm Summary Report Generator")
+uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
+
+if uploaded_file is not None:
     # Load the Excel file and use row 3 (index 2) as the header
     df = pd.read_excel(uploaded_file, header=2)
 
@@ -16,7 +19,8 @@ def process_file(uploaded_file):
         leased_site_names = leased_sites['Site'].tolist()  # List of leased site names for filtering
     else:
         st.error("'Site' column not found in the data!")
-        return
+        st.write(df.columns)
+        st.stop()
 
     # Step 1: Identify BANJO and Non BANJO sites in the 'Site Alias' column (Column C)
     if 'Site Alias' in df.columns:
@@ -28,7 +32,8 @@ def process_file(uploaded_file):
         else 'BANJO')
     else:
         st.error("'Site Alias' column not found in the data!")
-        return
+        st.write(df.columns)
+        st.stop()
 
     # Step 2: Filter relevant alarm categories in the 'Alarm Name' column
     alarm_categories = ['Battery Low', 'Mains Fail', 'DCDB-01 Primary Disconnect', 'PG Run']
@@ -36,7 +41,8 @@ def process_file(uploaded_file):
         filtered_df = df[df['Alarm Name'].isin(alarm_categories)]
     else:
         st.error("'Alarm Name' column not found in the data!")
-        return
+        st.write(df.columns)
+        st.stop()
 
     # Step 3: Exclude leased sites for "DCDB-01 Primary Disconnect" alarm
     dcdb_df = filtered_df[filtered_df['Alarm Name'] == 'DCDB-01 Primary Disconnect']
@@ -55,7 +61,8 @@ def process_file(uploaded_file):
         pivot_table.columns.name = None
     else:
         st.error("'Tenant' column not found in the data!")
-        return
+        st.write(df.columns)
+        st.stop()
 
     # Check for RIO (Cluster) and Subcenter (Zone)
     if 'Cluster' in df.columns and 'Zone' in df.columns:
@@ -63,14 +70,45 @@ def process_file(uploaded_file):
         summary_table = filtered_df.groupby(['Alarm Name', 'Cluster', 'Zone', 'Client']).size().reset_index(name='Alarm Count')
 
         # Renaming for better readability
-        summary_table = summary_table.rename(columns={'Cluster': 'RIO', 'Zone': 'Subcenter'})
+        summary_table = summary_table.rename(columns={
+            'Cluster': 'RIO',
+            'Zone': 'Subcenter'
+        })
 
         # Sort the summary_table by RIO and Alarm Count (descending)
         summary_table = summary_table.sort_values(by=['RIO', 'Alarm Count'], ascending=[True, False])
 
-        # Prepare output
-        output_tables = []
+        # Define color fill for each RIO and header
+        rios = summary_table['RIO'].unique()
+        colors = ['FFFF99', 'FF9999', 'D5A6F2', '99CCFF', 'FFCC99']  # Example color codes
+        color_map = {rio: PatternFill(start_color=color, end_color=color, fill_type="solid") for rio, color in zip(rios, colors)}
 
+        # Define color fill and font for headers and total row
+        header_fill = PatternFill(start_color="C0C0C0", end_color="C0C0C0", fill_type="solid")
+        total_row_fill = PatternFill(start_color="EAD1DC", end_color="EAD1DC", fill_type="solid")
+        overall_row_fill = PatternFill(start_color="E0EBEB", end_color="E0EBEB", fill_type="solid")
+        bold_font = Font(bold=True)
+        border_style = Border(left=Side(border_style="thin"),
+                              right=Side(border_style="thin"),
+                              top=Side(border_style="thin"),
+                              bottom=Side(border_style="thin"))
+        center_alignment = Alignment(horizontal='center', vertical='center')
+
+        # Define the path for saving the output file
+        desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+        output_file = os.path.join(desktop_path, "Alarm_Summary_Report_Formatted_By_Alarm.xlsx")
+
+        # Create a new Workbook
+        wb = Workbook()
+
+        # Save the original DataFrame to a new sheet
+        ws_original = wb.active
+        ws_original.title = "Original Data"
+        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
+            for c_idx, value in enumerate(row, 1):
+                ws_original.cell(row=r_idx, column=c_idx, value=value)
+
+        # Add each alarm-specific table (Battery Low, Mains Fail, DCDB-01 Primary Disconnect, PG Run) to a separate sheet
         for alarm in alarm_categories:
             alarm_data = summary_table[summary_table['Alarm Name'] == alarm]
 
@@ -80,64 +118,67 @@ def process_file(uploaded_file):
             pivot_table.columns.name = None
 
             # Sort the pivot table data first by RIO, then by counts in descending order
-            pivot_table = pivot_table.sort_values(by=['RIO', 'Subcenter'], ascending=[True, True])
+            pivot_table = pivot_table.sort_values(by=['RIO'] + list(pivot_table.columns[2:]), ascending=[True] + [False] * (len(pivot_table.columns) - 2))
 
-            # Calculate total counts for each RIO
-            pivot_table['Total Count'] = pivot_table[[col for col in pivot_table.columns if col not in ['RIO', 'Subcenter']]].sum(axis=1)
+            # Create a new sheet for the alarm
+            ws = wb.create_sheet(title=alarm)
 
-            # Prepare the display format
-            output_table = pd.DataFrame({
-                'RIO': pivot_table['RIO'],
-                'Subcenter': pivot_table['Subcenter'],
-                'Client 1': pivot_table.get('BANJO', 0),  # Default to 0 if 'BANJO' not present
-                'Client 2': pivot_table.get('GP', 0),      # Default to 0 if 'GP' not present
-                'Client 3': pivot_table.get('BL', 0),      # Default to 0 if 'BL' not present
-                'Client 4': pivot_table.get('Robi', 0),    # Default to 0 if 'Robi' not present
-                'Total Count': pivot_table['Total Count']
-            })
+            # Write the alarm name in bold
+            alarm_cell = ws.cell(row=1, column=1, value=alarm)
+            alarm_cell.font = Font(bold=True)
+            alarm_cell.alignment = center_alignment
 
-            output_tables.append((alarm, output_table))
-
-        # Display the tables
-        for alarm_name, table in output_tables:
-            st.write(f"### {alarm_name}")
-            st.write("#### Total Alarm Count")
-            st.write(table)
-
-            # Add merged RIO cells
-            # Note: We need to save the result into an Excel file to perform merging
-            output_file = os.path.join(os.path.expanduser("~"), "Desktop", "Alarm_Summary_Report.xlsx")
-            wb = Workbook()
-
-            ws = wb.create_sheet(title=alarm_name)
-
-            for r_idx, row in enumerate(dataframe_to_rows(table, index=False, header=True), 1):
+            # Write the pivot table data
+            for r_idx, row in enumerate(dataframe_to_rows(pivot_table, index=False, header=True), 2):
                 for c_idx, value in enumerate(row, 1):
-                    ws.cell(row=r_idx, column=c_idx, value=value)
+                    cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                    cell.alignment = center_alignment
 
-            # Merging RIO cells for identical RIO values
+                    # Apply color fill based on RIO
+                    rio = row[pivot_table.columns.get_loc('RIO')]
+                    if rio in color_map:
+                        cell.fill = color_map[rio]
+
+                    # Apply border style
+                    cell.border = border_style
+
+            # Merge cells for identical RIO values
+            rio_col_idx = 1  # Index of RIO column in the pivot table
             current_rio = None
             start_row = None
-            for r_idx in range(2, len(table) + 2):  # Start from row 2 to skip header
-                cell_value = ws.cell(row=r_idx, column=1).value  # RIO column index
+            for r_idx in range(2, len(pivot_table) + 2):
+                cell_value = ws.cell(row=r_idx, column=rio_col_idx).value
                 if cell_value == current_rio:
                     continue
                 if current_rio is not None and start_row is not None:
-                    ws.merge_cells(start_row=start_row, start_column=1, end_row=r_idx - 1, end_column=1)
+                    ws.merge_cells(start_row=start_row, start_column=rio_col_idx, end_row=r_idx - 1, end_column=rio_col_idx)
                 current_rio = cell_value
                 start_row = r_idx
             if start_row is not None:
-                ws.merge_cells(start_row=start_row, start_column=1, end_row=len(table) + 1, end_column=1)
+                ws.merge_cells(start_row=start_row, start_column=rio_col_idx, end_row=len(pivot_table) + 1,
+                               end_column=rio_col_idx)
 
-            wb.save(output_file)
-            st.success(f'Report saved successfully as {output_file}')
+            # Format header cells
+            for c_idx in range(1, ws.max_column + 1):
+                header_cell = ws.cell(row=2, column=c_idx)
+                header_cell.font = bold_font
+                header_cell.alignment = center_alignment
+                header_cell.fill = header_fill
 
-    else:
-        st.error("'Cluster' and/or 'Zone' column(s) not found in the data!")
+            # Add 'Total' row
+            total_row_index = len(pivot_table) + 3
+            ws.cell(row=total_row_index, column=1, value='Total').font = bold_font
+            ws.cell(row=total_row_index, column=2, value=f'=SUM(B3:B{total_row_index - 1})')  # Adjust according to your needs
 
-# Streamlit interface
-st.title("Alarm Summary Report Generator")
+            # Apply total row formatting
+            for c_idx in range(1, ws.max_column + 1):
+                total_cell = ws.cell(row=total_row_index, column=c_idx)
+                total_cell.fill = total_row_fill
+                total_cell.border = border_style
+                total_cell.alignment = center_alignment
 
-uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
-if uploaded_file:
-    process_file(uploaded_file)
+        # Save the workbook
+        wb.save(output_file)
+        st.success(f'Report saved successfully as {output_file}')
+else:
+    st.info("Please upload an Excel file to generate the report.")
