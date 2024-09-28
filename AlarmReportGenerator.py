@@ -220,7 +220,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             for alarm_name, pivot_table in alarm_data.items():
                 st.markdown(f"#### {alarm_name} Report")
                 st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-                st.markdown(f"**Total Alarm Count:** {pivot_table['Total Alarm Count'][0]}")
+                st.markdown(f"**Alarm Count:** {pivot_table['Total Alarm Count']}")
                 st.dataframe(pivot_table.drop(columns=['Total Alarm Count']))  # Show the pivot table without the total alarm count column
 
             # Prepare the Excel file for Current Alarms Report
