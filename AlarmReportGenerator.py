@@ -200,25 +200,28 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Combine both lists to maintain the desired order
             ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
 
+            # Create a dropdown for alarm selection
+            selected_alarms = st.multiselect("Select Alarms to Filter", ordered_alarm_names)
+
             # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
-
-            # Add a time filter for the "DCDB-01 Primary Disconnect" alarm
             dcdb_time_filter = None
-            if 'DCDB-01 Primary Disconnect' in ordered_alarm_names:
-                dcdb_time_filter = st.date_input("Select Date Range for DCDB-01 Primary Disconnect", [])
 
-            for alarm_name in ordered_alarm_names:
+            # Only create pivot tables for selected alarms
+            for alarm_name in selected_alarms:
                 data = create_pivot_table(alarm_df, alarm_name)
 
-                # Apply time filtering for DCDB-01 Primary Disconnect
-                if alarm_name == 'DCDB-01 Primary Disconnect' and dcdb_time_filter:
-                    # Filter the DataFrame based on the selected date range
-                    filtered_data = alarm_df[
-                        (alarm_df['Alarm Name'] == alarm_name) &
-                        (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(dcdb_time_filter))
-                    ]
-                    alarm_data[alarm_name] = create_pivot_table(filtered_data, alarm_name)
+                # Apply time filtering for DCDB-01 Primary Disconnect if selected
+                if alarm_name == 'DCDB-01 Primary Disconnect':
+                    dcdb_time_filter = st.date_input("Select Date Range for DCDB-01 Primary Disconnect", [])
+                    if dcdb_time_filter:
+                        filtered_data = alarm_df[
+                            (alarm_df['Alarm Name'] == alarm_name) &
+                            (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(dcdb_time_filter))
+                        ]
+                        alarm_data[alarm_name] = create_pivot_table(filtered_data, alarm_name)
+                    else:
+                        alarm_data[alarm_name] = data
                 else:
                     alarm_data[alarm_name] = data
 
