@@ -8,11 +8,8 @@ uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 # Define priority for alarms (you can customize this list as needed)
 alarm_priority = {
     'DCDB-01 Primary Disconnect': 1,
-    'Mains Fail': 2,  # replace with actual alarm names and priority
-    'Battery Low': 3,
-     'PG Run': 4,
-'MDB Fault': 5,
-'Door Open': 6
+    'Other Alarm 1': 2,  # replace with actual alarm names and priority
+    'Other Alarm 2': 3,
     # Add other alarms and their priorities
 }
 
