@@ -204,36 +204,34 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
 
             # Create a dictionary to store all pivot tables for current alarms
-alarm_data = {}
-for alarm_name in ordered_alarm_names:
-    if alarm_name in alarm_df['Alarm Name'].values:
-        pivot_table, total_count = create_pivot_table(alarm_df, alarm_name)
-        alarm_data[alarm_name] = pivot_table
+            alarm_data = {}
+            for alarm_name in ordered_alarm_names:
+                if alarm_name in alarm_df['Alarm Name'].values:
+                    pivot_table, total_count = create_pivot_table(alarm_df, alarm_name)
+                    alarm_data[alarm_name] = pivot_table
 
-        # Add the total alarm count to the header
-        alarm_data[alarm_name] = pd.concat([
-            pd.DataFrame({ 'Alarm Name': [alarm_name], 'till': [current_time.strftime('%Y-%m-%d %H:%M:%S')], 'Total Alarm Count': [total_count] }),
-            pivot_table
-        ], ignore_index=True)
+                    # Add the total alarm count to the header
+                    alarm_data[alarm_name] = pd.concat([
+                        pd.DataFrame({ 'Alarm Name': [alarm_name], 'till': [current_time.strftime('%Y-%m-%d %H:%M:%S')], 'Total Alarm Count': [total_count] }),
+                        pivot_table
+                    ], ignore_index=True)
 
-# Display Current Alarms Reports in Streamlit
-for alarm_name, pivot_table in alarm_data.items():
-    st.markdown(f"#### {alarm_name} Report")
-    st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-    st.markdown(f"**Total Alarm Count:** {pivot_table['Total Alarm Count'][0]}")
-    st.dataframe(pivot_table.drop(columns=['Total Alarm Count']))  # Show the pivot table without the total alarm count column
+            # Display Current Alarms Reports in Streamlit
+            for alarm_name, pivot_table in alarm_data.items():
+                st.markdown(f"#### {alarm_name} Report")
+                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
+                st.markdown(f"**Total Alarm Count:** {pivot_table['Total Alarm Count'][0]}")
+                st.dataframe(pivot_table.drop(columns=['Total Alarm Count']))  # Show the pivot table without the total alarm count column
 
-# Prepare the Excel file for Current Alarms Report
-current_alarm_excel_data = to_excel(alarm_data)
+            # Prepare the Excel file for Current Alarms Report
+            current_alarm_excel_data = to_excel(alarm_data)
 
-# Provide a download button for Current Alarms Report
-st.download_button(
-    label="Download Current Alarm Report",
-    data=current_alarm_excel_data,
-    file_name=f"Current Alarm Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-    
+            # Provide a download button for Current Alarms Report
+            st.download_button(
+                label="Download Current Alarm Report",
+                data=current_alarm_excel_data,
+                file_name=f"Current Alarm Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"An error occurred while processing the files: {e}")
