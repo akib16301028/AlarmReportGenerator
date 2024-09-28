@@ -3,9 +3,6 @@ import pandas as pd
 import re
 from io import BytesIO
 
-# Set page config for wider layout
-st.set_page_config(layout="wide")
-
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
     match = re.search(r'\((.*?)\)', site_alias)
@@ -44,17 +41,6 @@ def create_pivot_table(df, alarm_name):
     # Append the total row
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
-    # Visually merge cells in the 'Cluster' column by replacing duplicate entries with empty strings
-    last_cluster = None
-    for i in range(len(pivot)):
-        if pivot.at[i, 'Cluster'] == last_cluster:
-            pivot.at[i, 'Cluster'] = ''
-        else:
-            last_cluster = pivot.at[i, 'Cluster']
-    
-    # Convert all counts to integers
-    pivot[client_columns + ['Total']] = pivot[client_columns + ['Total']].astype(int)
-
     # Calculate Total Alarm Count
     total_alarm_count = pivot['Total'].iloc[-1]
     
@@ -117,8 +103,8 @@ if uploaded_file is not None:
                 st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
                 st.markdown(f"**Total Alarm Count:** {int(total_count)}")
                 
-                # Display pivot table in a more compact manner
-                st.dataframe(pivot.style.hide_index(), use_container_width=True)  # Use dataframe with hidden index
+                # Display pivot table
+                st.dataframe(pivot)
                 st.markdown("---")  # Separator between tables
             
             # Create download button
