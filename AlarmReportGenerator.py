@@ -112,7 +112,7 @@ def to_excel(dfs_dict):
     return output.getvalue()
 
 # Streamlit app
-st.title("Alarm and Offline Data Pivot Table Generator")
+st.title("RMS Alarm Report Maker")
 
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
 uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
