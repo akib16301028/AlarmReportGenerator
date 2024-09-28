@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
-from datetime import datetime
 
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
@@ -120,9 +119,9 @@ if uploaded_file is not None:
                 pivot, total_count = create_pivot_table(df, alarm)
                 pivot_tables[alarm] = (pivot, total_count)
                 
-                # Use an expander to keep headers and alarm count visible
-                with st.expander(f"{alarm} till {formatted_time} (Total Count: {int(total_count)})", expanded=False):
-                    st.dataframe(pivot)  # Display the pivot table
+                # Display the alarm name and total count
+                st.markdown(f"### {alarm} till {formatted_time} (Total Count: {int(total_count)})")
+                st.dataframe(pivot)  # Display the pivot table
             
             # Create download button
             excel_data = to_excel(pivot_tables)
