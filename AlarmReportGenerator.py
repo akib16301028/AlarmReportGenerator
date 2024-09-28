@@ -33,8 +33,6 @@ def create_pivot_table(df, alarm_name):
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
-    total_alarm_count = pivot['Total'].iloc[-1]
-    
     last_cluster = None
     for i in range(len(pivot)):
         if pivot.at[i, 'Cluster'] == last_cluster:
@@ -42,7 +40,7 @@ def create_pivot_table(df, alarm_name):
         else:
             last_cluster = pivot.at[i, 'Cluster']
     
-    return pivot, total_alarm_count
+    return pivot
 
 # Function to create pivot table for offline report
 def create_offline_pivot(df):
@@ -66,8 +64,6 @@ def create_offline_pivot(df):
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
 
-    total_offline_count = int(pivot['Total'].iloc[-1])
-
     last_cluster = None
     for i in range(len(pivot)):
         if pivot.at[i, 'Cluster'] == last_cluster:
@@ -75,24 +71,7 @@ def create_offline_pivot(df):
         else:
             last_cluster = pivot.at[i, 'Cluster']
     
-    return pivot, total_offline_count
-
-# Function to calculate time offline smartly (minutes, hours, or days)
-def calculate_time_offline(df, current_time):
-    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
-    df['Hours Offline'] = (current_time - df['Last Online Time']).dt.total_seconds() / 3600
-
-    def format_offline_duration(hours):
-        if hours < 1:
-            return f"{int(hours * 60)} minutes"
-        elif hours < 24:
-            return f"{int(hours)} hours"
-        else:
-            return f"{int(hours // 24)} days"
-
-    df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
-
-    return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
+    return pivot
 
 # Function to extract the file name's timestamp
 def extract_timestamp(file_name):
@@ -126,34 +105,11 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         offline_time = extract_timestamp(uploaded_offline_file.name)
 
         # Process the Offline Report
-        pivot_offline, total_offline_count = create_offline_pivot(offline_df)
+        pivot_offline = create_offline_pivot(offline_df)
 
         st.markdown("### Offline Report")
         st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-        st.markdown(f"**Total Offline Count:** {total_offline_count}")
         st.dataframe(pivot_offline)
-
-        # Calculate time offline smartly using the offline time
-        time_offline_df = calculate_time_offline(offline_df, offline_time)
-
-        # Create a summary table based on offline duration
-        summary_dict = {}
-        for index, row in time_offline_df.iterrows():
-            duration = row['Offline Duration']
-            if duration not in summary_dict:
-                summary_dict[duration] = []
-            summary_dict[duration].append(row)
-
-        # Prepare DataFrame for display
-        summary_data = []
-        for duration, sites in summary_dict.items():
-            for site in sites:
-                summary_data.append([duration, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
-        
-        # Display the summary table
-        summary_df = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name (Site Alias)", "Cluster", "Zone", "Last Online Time"])
-        st.markdown("### Summary of Offline Sites")
-        st.dataframe(summary_df)
 
         # Check for required columns in Alarm Report
         alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time']
@@ -165,8 +121,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
             # Prepare download for Offline Report
             offline_report_data = {
-                "Offline Summary": pivot_offline,
-                "Offline Details": summary_df
+                "Offline Summary": pivot_offline
             }
             offline_excel_data = to_excel(offline_report_data)
 
@@ -181,67 +136,47 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             st.markdown(f"### Current Alarms Report")
             st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
 
+            # Display all alarm tables initially
             alarm_names = alarm_df['Alarm Name'].unique()
-
-            # Define the priority order for the alarm names
-            priority_order = [
-                'Mains Fail',
-                'Battery Low',
-                'DCDB-01 Primary Disconnect',
-                'PG Run',
-                'MDB Fault',
-                'Door Open'
-            ]
-
-            # Separate prioritized alarms from the rest
-            prioritized_alarms = [name for name in priority_order if name in alarm_names]
-            non_prioritized_alarms = [name for name in alarm_names if name not in priority_order]
-
-            # Combine both lists to maintain the desired order
-            ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
-
-            # Create a dropdown for alarm selection
-            selected_alarms = st.multiselect("Select Alarms to Filter", ordered_alarm_names)
 
             # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
-            dcdb_time_filter = None
+            for alarm_name in alarm_names:
+                pivot = create_pivot_table(alarm_df, alarm_name)
+                alarm_data[alarm_name] = pivot
 
-            # Only create pivot tables for selected alarms
-            for alarm_name in selected_alarms:
-                data = create_pivot_table(alarm_df, alarm_name)
-
-                # Apply time filtering for DCDB-01 Primary Disconnect if selected
-                if alarm_name == 'DCDB-01 Primary Disconnect':
-                    dcdb_time_filter = st.date_input("Select Date Range for DCDB-01 Primary Disconnect", [])
-                    if dcdb_time_filter:
-                        filtered_data = alarm_df[
-                            (alarm_df['Alarm Name'] == alarm_name) &
-                            (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(dcdb_time_filter))
-                        ]
-                        alarm_data[alarm_name] = create_pivot_table(filtered_data, alarm_name)
-                    else:
-                        alarm_data[alarm_name] = data
-                else:
-                    alarm_data[alarm_name] = data
-
-            # Display each pivot table for the current alarms
-            for alarm_name, (pivot, total_count) in alarm_data.items():
+                # Display the alarm name
                 st.markdown(f"### <b>{alarm_name}</b>", unsafe_allow_html=True)
                 st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-                st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
+                st.markdown(f"**Alarm Count:** {len(alarm_df[alarm_df['Alarm Name'] == alarm_name])}")
                 st.dataframe(pivot)
 
-            # Prepare download for Current Alarms Report only if there is data
-            if alarm_data:
-                current_alarm_excel_data = to_excel({alarm_name: data[0] for alarm_name, data in alarm_data.items()})
-                st.download_button(
-                    label="Download Current Alarms Report",
-                    data=current_alarm_excel_data,
-                    file_name=f"Current Alarms Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            else:
-                st.warning("No current alarm data available for export.")
+            # Dropdown for time filter
+            time_filter_alarm = st.selectbox("Select Alarm for Time Filter (DCDB-01 Primary Disconnect)", ["None"] + [name for name in alarm_names if name == "DCDB-01 Primary Disconnect"])
+
+            if time_filter_alarm == "DCDB-01 Primary Disconnect":
+                # Get time filter inputs
+                start_time = st.date_input("Start Date", value=pd.to_datetime("2024-09-28"))
+                start_hour = st.time_input("Start Time", value=pd.to_datetime("10:00:00").time())
+                end_time = st.date_input("End Date", value=pd.to_datetime("2024-09-29"))
+                end_hour = st.time_input("End Time", value=pd.to_datetime("23:59:59").time())
+
+                # Create a datetime range for filtering
+                start_datetime = pd.to_datetime(f"{start_time} {start_hour}")
+                end_datetime = pd.to_datetime(f"{end_time} {end_hour}")
+
+                # Filter alarm_df for the selected time range
+                filtered_alarm_df = alarm_df[(alarm_df['Alarm Name'] == "DCDB-01 Primary Disconnect") & 
+                                              (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p') >= start_datetime) & 
+                                              (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p') <= end_datetime)]
+
+                # Display the filtered pivot table
+                if not filtered_alarm_df.empty:
+                    st.markdown(f"### Filtered Table for {time_filter_alarm} between {start_datetime} and {end_datetime}")
+                    filtered_pivot = create_pivot_table(filtered_alarm_df, time_filter_alarm)
+                    st.dataframe(filtered_pivot)
+                else:
+                    st.warning("No alarms found for the selected time range.")
+
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
