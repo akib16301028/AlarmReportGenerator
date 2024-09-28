@@ -84,6 +84,14 @@ def create_offline_pivot(df):
 
     # Calculate total offline count from the last cell of the Total column
     total_offline_count = int(pivot['Total'].iloc[-1])  # Get the last cell of the Total column
+
+    # Merge same Cluster cells (simulate merged cells)
+    last_cluster = None
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
+        else:
+            last_cluster = pivot.at[i, 'Cluster']
     
     return pivot, total_offline_count
 
@@ -106,7 +114,7 @@ def to_excel(dfs_dict):
     return output.getvalue()
 
 # Streamlit app
-st.title("Alarm and Offline Data Pivot Table Generator")
+st.title("RMS Alarm Report Maker")
 
 # Upload Excel files for both Alarm Report and Offline Report
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
@@ -133,7 +141,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Display header for Offline Report
         st.markdown("### Offline Report")
         st.markdown(f"<small><i>till {formatted_offline_time}</i></small>", unsafe_allow_html=True)
-        st.markdown(f"**Total Offline Count:** {total_offline_count}")
+        st.markdown(f"**Total Offline Sites:** {total_offline_count}")
         
         # Display the pivot table for Offline Report
         st.dataframe(pivot_offline)
