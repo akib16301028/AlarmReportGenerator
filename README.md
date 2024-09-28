@@ -10,9 +10,3 @@
 - Generate client-wise and RIO/Subcenter-wise summary tables.
 - Apply custom formatting to the output Excel report.
 - Save the report directly to the user's desktop.
-
-## Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/AlarmReportGenerator.git
