@@ -120,7 +120,8 @@ if uploaded_file is not None:
                 pivot_tables[alarm] = (pivot, total_count)
                 
                 # Display the alarm name and total count
-                st.markdown(f"### {alarm} till {formatted_time} (Total Count: {int(total_count)})")
+                st.markdown(f"### {alarm} till {formatted_time}")
+                st.markdown(f"**Total Count:** {int(total_count)}")  # Separate line for total count
                 st.dataframe(pivot)  # Display the pivot table
             
             # Create download button
