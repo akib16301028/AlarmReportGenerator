@@ -35,7 +35,10 @@ if uploaded_file is not None:
     # Add a total count for each Client and overall
     pivot_table['Total'] = pivot_table.iloc[:, 3:].sum(axis=1)  # Sum all client counts
     total_counts = pivot_table[['Client', 'Total']].groupby('Client').sum().reset_index()
-    total_counts = total_counts.append({'Client': 'Total', 'Total': total_counts['Total'].sum()}, ignore_index=True)
+
+    # Append a row for the total
+    total_row = pd.DataFrame({'Client': ['Total'], 'Total': [total_counts['Total'].sum()]})
+    total_counts = pd.concat([total_counts, total_row], ignore_index=True)
 
     # Display pivot table
     st.subheader("Pivot Table")
