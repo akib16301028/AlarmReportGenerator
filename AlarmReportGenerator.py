@@ -56,42 +56,38 @@ def create_pivot_table(df, alarm_name):
 
 # Function to create pivot table for offline report
 def create_offline_pivot(df):
-    # Create pivot table with unique counts for each duration
-    pivot = df.groupby(['Cluster', 'Zone', 'Duration']).agg({
-        'Site Alias': 'nunique'  # Count unique Site Alias for Total
-    }).rename(columns={'Site Alias': 'Total'}).reset_index()
+    # Count unique Site Aliases for the total number of offline sites
+    total_offline_count = df['Site Alias'].nunique()
 
-    # Create a pivot table for duration categories
+    # Create pivot table with unique counts for each duration
+    pivot = df.groupby(['Cluster', 'Zone']).agg({
+        'Duration': lambda x: (x == 'Less than 24 hours').sum(),
+        'Duration': lambda x: (x == 'More than 24 hours').sum(),
+        'Duration': lambda x: (x == 'More than 72 hours').sum(),
+        'Site Alias': 'nunique'
+    }).rename(columns={'Site Alias': 'Total'}).reset_index()
+    
+    # Add the duration counts to the pivot
     duration_counts = df['Duration'].value_counts()
-    
-    # Create columns for different duration categories
-    duration_categories = ['Less than 24 hours', 'More than 24 hours', 'More than 72 hours']
-    
-    for category in duration_categories:
-        pivot[category] = pivot['Duration'].apply(lambda x: 1 if x == category else 0)
-    
-    # Summarize totals for each category
-    summary = pivot.groupby(['Cluster', 'Zone']).agg(
-        **{category: 'sum' for category in duration_categories},
-        Total=('Total', 'sum')
-    ).reset_index()
+    for duration in duration_counts.index:
+        pivot[duration] = (df['Duration'] == duration).astype(int)
 
     # Add a total row for each column
-    total_row = summary[duration_categories + ['Total']].sum().to_frame().T
+    total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
     # Append the total row
-    summary = pd.concat([summary, total_row], ignore_index=True)
+    pivot = pd.concat([pivot, total_row], ignore_index=True)
 
     # Merge same Cluster cells (simulate merged cells)
     last_cluster = None
-    for i in range(len(summary)):
-        if summary.at[i, 'Cluster'] == last_cluster:
-            summary.at[i, 'Cluster'] = ''
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
         else:
-            last_cluster = summary.at[i, 'Cluster']
+            last_cluster = pivot.at[i, 'Cluster']
 
-    return summary
+    return pivot, total_offline_count
 
 # Function to extract the file name's timestamp
 def extract_timestamp(file_name):
@@ -160,19 +156,11 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             ordered_alarms = priority_alarms + sorted(non_priority_alarms)
             
             # Create and display the Offline Report first
-            pivot_offline = create_offline_pivot(offline_df)
-            total_offline_count = pivot_offline['Total'].sum()  # Calculate total unique sites
+            pivot_offline, total_offline_count = create_offline_pivot(offline_df)
             st.markdown("### Offline Report")
             st.markdown(f"<small><i>till {formatted_offline_time}</i></small>", unsafe_allow_html=True)
             st.markdown(f"**Total Offline Count:** {total_offline_count}")
-            
-            # Highlight top 5 rows based on 'Total' column
-            top_5_offline = pivot_offline.nlargest(5, 'Total')
-            styled_offline = pivot_offline.style.apply(
-                lambda x: ['background-color: yellow' if i in top_5_offline.index else '' for i in range(len(x))],
-                subset=['Cluster', 'Zone', 'Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']
-            )
-            st.dataframe(styled_offline)
+            st.dataframe(pivot_offline)
 
             # Dictionary to store pivot tables and total counts
             alarm_pivot_tables = {}
@@ -185,13 +173,12 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 st.markdown(f"<small><i>till {formatted_alarm_time}</i></small>", unsafe_allow_html=True)
                 st.markdown(f"**Total Count:** {int(total_count)}")
                 
-                # Highlight top 5 rows based on 'Total' column
-                top_5_alarms = pivot.nlargest(5, 'Total')
-                styled_alarm = pivot.style.apply(
-                    lambda x: ['background-color: yellow' if i in top_5_alarms.index else '' for i in range(len(x))],
-                    subset=['Cluster', 'Zone'] + client_columns + ['Total']
-                )
-                st.dataframe(styled_alarm)
+                # Style the top 5 alarm rows
+                top_5_alarms = sorted(alarm_pivot_tables.items(), key=lambda x: x[1][1], reverse=True)[:5]
+                if alarm in dict(top_5_alarms):
+                    st.dataframe(pivot.style.applymap(lambda x: 'background-color: yellow' if x else '', subset=['Total']))  # Highlight
+                else:
+                    st.dataframe(pivot)
 
             # Create download button for Alarm Report
             alarm_excel_data = to_excel(alarm_pivot_tables)
@@ -201,15 +188,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 file_name=alarm_download_file_name,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-        
-        # Create download button for Offline Report
-        offline_excel_data = to_excel({'Offline Report': (pivot_offline, total_offline_count)})
-        st.download_button(
-            label="Download Offline Report as Excel",
-            data=offline_excel_data,
-            file_name=f"Offline RMS Report {formatted_offline_time}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
     
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
