@@ -139,15 +139,10 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         summary_data = []
         for days, sites in summary_dict.items():
             for site in sites:
-                # Group -1, 0, and 1 under "Less than 1 Day"
-                if days in [-1, 0, 1]:
-                    display_days = "Less than 1 Day"
-                else:
-                    display_days = days
-                summary_data.append([display_days, site['Site Alias']])
-
+                summary_data.append([days, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
+        
         # Display the summary table
-        summary_df = pd.DataFrame(summary_data, columns=["Days Offline", "Site Name"])
+        summary_df = pd.DataFrame(summary_data, columns=["Days Offline", "Site Name (Site Alias)", "Cluster", "Zone", "Last Online Time"])
         st.markdown("### Summary of Offline Sites")
         st.dataframe(summary_df)
 
