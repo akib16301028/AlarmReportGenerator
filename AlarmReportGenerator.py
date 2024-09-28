@@ -27,7 +27,7 @@ def create_pivot_table(df, alarm_name):
         fill_value=0
     )
     
-    # Flatten the columns and remove 'Client' level if it exists
+    # Flatten the columns
     pivot = pivot.reset_index()
     
     # Calculate Total per row
@@ -40,10 +40,10 @@ def create_pivot_table(df, alarm_name):
     
     # Append the total row
     pivot = pd.concat([pivot, total_row], ignore_index=True)
-
-    # Remove the 'Client' level from columns if it exists
-    pivot.columns = pivot.columns.droplevel(0)  # Drop the first level if multi-index
-
+    
+    # Calculate Total Alarm Count
+    total_alarm_count = pivot['Total'].iloc[-1]
+    
     # Merge same Cluster cells (simulate merged cells)
     last_cluster = None
     for i in range(len(pivot)):
@@ -52,7 +52,7 @@ def create_pivot_table(df, alarm_name):
         else:
             last_cluster = pivot.at[i, 'Cluster']
     
-    return pivot, total_row['Total']
+    return pivot, total_alarm_count
 
 # Function to convert multiple DataFrames to Excel with separate sheets
 def to_excel(dfs_dict):
@@ -107,9 +107,12 @@ if uploaded_file is not None:
                 pivot, total_count = create_pivot_table(df, alarm)
                 pivot_tables[alarm] = (pivot, total_count)
                 
-                # Create an expander for each alarm
-                with st.expander(f"{alarm} (Total Count: {int(total_count)})", expanded=False):
-                    st.write(pivot)  # Display the pivot table
+                # Use a beta container to keep headers and alarm count visible
+                with st.container():
+                    st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
+                    st.markdown(f"**Total Alarm Count:** {int(total_count)}")
+                    st.dataframe(pivot)  # Display the pivot table
+                    st.markdown("---")  # Separator between tables
             
             # Create download button
             excel_data = to_excel(pivot_tables)
