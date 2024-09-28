@@ -111,7 +111,22 @@ if uploaded_file is not None:
                 with st.container():
                     st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
                     st.markdown(f"**Total Alarm Count:** {int(total_count)}")
-                    st.dataframe(pivot)  # Display the pivot table
+                    
+                    # Render pivot table as HTML
+                    html = pivot.to_html(index=False, border=0)
+                    st.markdown(html, unsafe_allow_html=True)
+
+                    # Add a button to copy the table to clipboard
+                    copy_button = st.button(f"Copy {alarm} Table to Clipboard", key=alarm)
+                    if copy_button:
+                        st.markdown(
+                            f"""<script>
+                            navigator.clipboard.writeText(`{html}`);
+                            alert('Table copied to clipboard!');
+                            </script>""",
+                            unsafe_allow_html=True
+                        )
+
                     st.markdown("---")  # Separator between tables
             
             # Create download button
