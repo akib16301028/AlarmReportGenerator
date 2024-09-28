@@ -4,6 +4,7 @@ import streamlit as st
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import PatternFill, Border, Side, Font, Alignment
+import tempfile
 
 # Streamlit file uploader
 st.title("Excel Alarm Summary Report Generator")
@@ -94,91 +95,99 @@ if uploaded_file is not None:
                               bottom=Side(border_style="thin"))
         center_alignment = Alignment(horizontal='center', vertical='center')
 
-        # Define the path for saving the output file
-        desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-        output_file = os.path.join(desktop_path, "Alarm_Summary_Report_Formatted_By_Alarm.xlsx")
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as temp_file:
+            output_file = temp_file.name
 
-        # Create a new Workbook
-        wb = Workbook()
+            # Create a new Workbook
+            wb = Workbook()
 
-        # Save the original DataFrame to a new sheet
-        ws_original = wb.active
-        ws_original.title = "Original Data"
-        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
-            for c_idx, value in enumerate(row, 1):
-                ws_original.cell(row=r_idx, column=c_idx, value=value)
-
-        # Add each alarm-specific table (Battery Low, Mains Fail, DCDB-01 Primary Disconnect, PG Run) to a separate sheet
-        for alarm in alarm_categories:
-            alarm_data = summary_table[summary_table['Alarm Name'] == alarm]
-
-            # Pivot the table to get separate columns for each client (BANJO, GP, BL, Robi)
-            pivot_table = alarm_data.pivot_table(index=['RIO', 'Subcenter'], columns='Client', values='Alarm Count', fill_value=0)
-            pivot_table.reset_index(inplace=True)
-            pivot_table.columns.name = None
-
-            # Sort the pivot table data first by RIO, then by counts in descending order
-            pivot_table = pivot_table.sort_values(by=['RIO'] + list(pivot_table.columns[2:]), ascending=[True] + [False] * (len(pivot_table.columns) - 2))
-
-            # Create a new sheet for the alarm
-            ws = wb.create_sheet(title=alarm)
-
-            # Write the alarm name in bold
-            alarm_cell = ws.cell(row=1, column=1, value=alarm)
-            alarm_cell.font = Font(bold=True)
-            alarm_cell.alignment = center_alignment
-
-            # Write the pivot table data
-            for r_idx, row in enumerate(dataframe_to_rows(pivot_table, index=False, header=True), 2):
+            # Save the original DataFrame to a new sheet
+            ws_original = wb.active
+            ws_original.title = "Original Data"
+            for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
                 for c_idx, value in enumerate(row, 1):
-                    cell = ws.cell(row=r_idx, column=c_idx, value=value)
-                    cell.alignment = center_alignment
+                    ws_original.cell(row=r_idx, column=c_idx, value=value)
 
-                    # Apply color fill based on RIO
-                    rio = row[pivot_table.columns.get_loc('RIO')]
-                    if rio in color_map:
-                        cell.fill = color_map[rio]
+            # Add each alarm-specific table (Battery Low, Mains Fail, DCDB-01 Primary Disconnect, PG Run) to a separate sheet
+            for alarm in alarm_categories:
+                alarm_data = summary_table[summary_table['Alarm Name'] == alarm]
 
-                    # Apply border style
-                    cell.border = border_style
+                # Pivot the table to get separate columns for each client (BANJO, GP, BL, Robi)
+                pivot_table = alarm_data.pivot_table(index=['RIO', 'Subcenter'], columns='Client', values='Alarm Count', fill_value=0)
+                pivot_table.reset_index(inplace=True)
+                pivot_table.columns.name = None
 
-            # Merge cells for identical RIO values
-            rio_col_idx = 1  # Index of RIO column in the pivot table
-            current_rio = None
-            start_row = None
-            for r_idx in range(2, len(pivot_table) + 2):
-                cell_value = ws.cell(row=r_idx, column=rio_col_idx).value
-                if cell_value == current_rio:
-                    continue
-                if current_rio is not None and start_row is not None:
-                    ws.merge_cells(start_row=start_row, start_column=rio_col_idx, end_row=r_idx - 1, end_column=rio_col_idx)
-                current_rio = cell_value
-                start_row = r_idx
-            if start_row is not None:
-                ws.merge_cells(start_row=start_row, start_column=rio_col_idx, end_row=len(pivot_table) + 1,
-                               end_column=rio_col_idx)
+                # Sort the pivot table data first by RIO, then by counts in descending order
+                pivot_table = pivot_table.sort_values(by=['RIO'] + list(pivot_table.columns[2:]), ascending=[True] + [False] * (len(pivot_table.columns) - 2))
 
-            # Format header cells
-            for c_idx in range(1, ws.max_column + 1):
-                header_cell = ws.cell(row=2, column=c_idx)
-                header_cell.font = bold_font
-                header_cell.alignment = center_alignment
-                header_cell.fill = header_fill
+                # Create a new sheet for the alarm
+                ws = wb.create_sheet(title=alarm)
 
-            # Add 'Total' row
-            total_row_index = len(pivot_table) + 3
-            ws.cell(row=total_row_index, column=1, value='Total').font = bold_font
-            ws.cell(row=total_row_index, column=2, value=f'=SUM(B3:B{total_row_index - 1})')  # Adjust according to your needs
+                # Write the alarm name in bold
+                alarm_cell = ws.cell(row=1, column=1, value=alarm)
+                alarm_cell.font = Font(bold=True)
+                alarm_cell.alignment = center_alignment
 
-            # Apply total row formatting
-            for c_idx in range(1, ws.max_column + 1):
-                total_cell = ws.cell(row=total_row_index, column=c_idx)
-                total_cell.fill = total_row_fill
-                total_cell.border = border_style
-                total_cell.alignment = center_alignment
+                # Write the pivot table data
+                for r_idx, row in enumerate(dataframe_to_rows(pivot_table, index=False, header=True), 2):
+                    for c_idx, value in enumerate(row, 1):
+                        cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                        cell.alignment = center_alignment
 
-        # Save the workbook
-        wb.save(output_file)
-        st.success(f'Report saved successfully as {output_file}')
+                        # Apply color fill based on RIO
+                        rio = row[pivot_table.columns.get_loc('RIO')]
+                        if rio in color_map:
+                            cell.fill = color_map[rio]
+
+                        # Apply border style
+                        cell.border = border_style
+
+                # Merge cells for identical RIO values
+                rio_col_idx = 1  # Index of RIO column in the pivot table
+                current_rio = None
+                start_row = None
+                for r_idx in range(2, len(pivot_table) + 2):
+                    cell_value = ws.cell(row=r_idx, column=rio_col_idx).value
+                    if cell_value == current_rio:
+                        continue
+                    if current_rio is not None and start_row is not None:
+                        ws.merge_cells(start_row=start_row, start_column=rio_col_idx, end_row=r_idx - 1, end_column=rio_col_idx)
+                    current_rio = cell_value
+                    start_row = r_idx
+                if start_row is not None:
+                    ws.merge_cells(start_row=start_row, start_column=rio_col_idx, end_row=len(pivot_table) + 1,
+                                   end_column=rio_col_idx)
+
+                # Format header cells
+                for c_idx in range(1, ws.max_column + 1):
+                    header_cell = ws.cell(row=2, column=c_idx)
+                    header_cell.font = bold_font
+                    header_cell.fill = header_fill
+                    header_cell.alignment = center_alignment
+                    header_cell.border = border_style
+
+                # Calculate and write total row
+                total_row_index = len(pivot_table) + 3
+                ws.cell(row=total_row_index, column=1, value="Total")
+                for c_idx in range(2, ws.max_column + 1):
+                    ws.cell(row=total_row_index, column=c_idx, value=f'=SUM(B3:B{total_row_index - 1})')  # Adjust according to your needs
+
+                # Apply total row formatting
+                for c_idx in range(1, ws.max_column + 1):
+                    total_cell = ws.cell(row=total_row_index, column=c_idx)
+                    total_cell.fill = total_row_fill
+                    total_cell.border = border_style
+                    total_cell.alignment = center_alignment
+
+            # Save the workbook
+            wb.save(output_file)
+
+        # Provide a download link for the generated report
+        with open(output_file, "rb") as f:
+            st.download_button("Download Excel Report", f, file_name="Alarm_Summary_Report_Formatted_By_Alarm.xlsx")
+
+        st.success(f'Report saved successfully! You can download it using the button above.')
+
 else:
     st.info("Please upload an Excel file to generate the report.")
