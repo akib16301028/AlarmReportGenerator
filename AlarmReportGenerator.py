@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
+from datetime import datetime
 
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
@@ -74,6 +75,19 @@ if uploaded_file is not None:
         # Read the uploaded Excel file, assuming headers start from row 3 (0-indexed)
         df = pd.read_excel(uploaded_file, header=2)
         
+        # Extract date and time from the uploaded file name
+        file_name = uploaded_file.name
+        match = re.search(r'\((.*?)\)', file_name)
+        if match:
+            # Parse the timestamp from the file name
+            timestamp_str = match.group(1).replace('_', ' ')  # Replace underscores with spaces
+            timestamp = datetime.strptime(timestamp_str, "%B %dth %Y, %I_%M_%S %p")
+            formatted_time = timestamp.strftime("%B %dth %Y, %I:%M:%S %p")
+            download_file_name = f"RMS Alarm Report {timestamp.strftime('%B %dth %Y, %I_%M_%S %p')}.xlsx"
+        else:
+            formatted_time = "Unknown Time"
+            download_file_name = "RMS Alarm Report Unknown Time.xlsx"
+
         # Check if required columns exist
         required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name']
         if not all(col in df.columns for col in required_columns):
@@ -107,19 +121,16 @@ if uploaded_file is not None:
                 pivot, total_count = create_pivot_table(df, alarm)
                 pivot_tables[alarm] = (pivot, total_count)
                 
-                # Use a beta container to keep headers and alarm count visible
-                with st.container():
-                    st.markdown(f"### {alarm}")  # Header without "Alarm Name: "
-                    st.markdown(f"**Total Alarm Count:** {int(total_count)}")
+                # Use an expander to keep headers and alarm count visible
+                with st.expander(f"{alarm} till {formatted_time} (Total Count: {int(total_count)})", expanded=False):
                     st.dataframe(pivot)  # Display the pivot table
-                    st.markdown("---")  # Separator between tables
             
             # Create download button
             excel_data = to_excel(pivot_tables)
             st.download_button(
                 label="Download All Pivot Tables as Excel",
                 data=excel_data,
-                file_name="pivot_tables_output.xlsx",
+                file_name=download_file_name,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
     except Exception as e:
