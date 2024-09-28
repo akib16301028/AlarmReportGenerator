@@ -78,11 +78,11 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
-# Function to calculate time offline smartly (minutes, hours, or days)
-def calculate_time_offline(df):
-    now = datetime.now()
+# Function to calculate offline duration based on Last Online Time and extracted timestamp
+def calculate_time_offline(df, fetch_time):
+    fetch_time = pd.to_datetime(fetch_time)
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p')
-    df['Hours Offline'] = (now - df['Last Online Time']).dt.total_seconds() / 3600  # Convert to hours
+    df['Hours Offline'] = (fetch_time - df['Last Online Time']).dt.total_seconds() / 3600  # Convert to hours
 
     # Determine the Offline Duration column based on Hours Offline
     def format_offline_duration(hours):
@@ -102,7 +102,7 @@ def extract_timestamp(file_name):
     match = re.search(r'\((.*?)\)', file_name)
     if match:
         timestamp_str = match.group(1)
-        return datetime.strptime(timestamp_str, '%B %dth %Y, %I_%M_%S %p')
+        return timestamp_str.replace('_', ':')
     return "Unknown Time"
 
 # Function to convert multiple DataFrames to Excel with separate sheets
@@ -125,6 +125,9 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
+        # Extract timestamp for current alarms
+        formatted_alarm_time = extract_timestamp(uploaded_alarm_file.name)
+        
         # Process the Offline Report
         pivot_offline, total_offline_count = create_offline_pivot(offline_df)
 
@@ -134,8 +137,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
         st.dataframe(pivot_offline)
 
-        # Calculate time offline smartly
-        time_offline_df = calculate_time_offline(offline_df)
+        # Calculate time offline smartly using the extracted alarm time
+        time_offline_df = calculate_time_offline(offline_df, formatted_alarm_time)
 
         # Create a summary table based on offline duration
         summary_dict = {}
@@ -192,9 +195,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             for alarm_name in ordered_alarm_names:
                 pivot_table, total_alarm_count = alarm_data[alarm_name]
                 
-                # Get the formatted alarm time
-                formatted_alarm_time = extract_timestamp(uploaded_alarm_file.name)
-                
                 # Create the header with italic smaller text
                 st.markdown(f"### {alarm_name}")
                 st.markdown(f"<small><i>till {formatted_alarm_time}</i></small>", unsafe_allow_html=True)
@@ -202,7 +202,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 st.dataframe(pivot_table)
 
             # Create download button for combined Alarm Report
-            combined_alarm_df = pd.concat([pivot_table.assign(Alarm=alarm_name) for alarm_name, (pivot_table, _) in alarm_data.items()])
+            combined_alarm_df = pd.concat([pivot_table.assign(Alarm=alarm_name) for alarm_name, (pivot_table, _) in alarm_data.items()], ignore_index=True)
             combined_alarm_bytes = to_excel(alarm_data)
             st.download_button(
                 label="Download Combined Alarm Report",
