@@ -81,7 +81,8 @@ if uploaded_file is not None:
         if match:
             # Parse the timestamp from the file name
             timestamp_str = match.group(1).replace('_', ' ')  # Replace underscores with spaces
-            timestamp = datetime.strptime(timestamp_str, "%B %dth %Y, %I_%M_%S %p")
+            timestamp_str = timestamp_str.replace(' ', ':', 2)  # Replace the first two spaces with colons
+            timestamp = datetime.strptime(timestamp_str, "%B %dth %Y, %I:%M:%S %p")
             formatted_time = timestamp.strftime("%B %dth %Y, %I:%M:%S %p")
             download_file_name = f"RMS Alarm Report {timestamp.strftime('%B %dth %Y, %I_%M_%S %p')}.xlsx"
         else:
