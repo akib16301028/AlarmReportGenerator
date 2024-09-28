@@ -82,7 +82,12 @@ def create_offline_pivot(df):
 def calculate_days_from_last_online(df):
     now = datetime.now()
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p')
-    df['Days Offline'] = (now - df['Last Online Time']).dt.days
+    df['Hours Offline'] = (now - df['Last Online Time']).dt.total_seconds() / 3600  # Convert to hours
+
+    # Determine the Days Offline column based on Hours Offline
+    df['Days Offline'] = df['Hours Offline'].apply(lambda x: 
+        f"{int(x)} hours" if x < 24 else "> 1 Day" if x < 48 else str(int(x // 24)))
+
     return df[['Days Offline', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
 
 # Function to extract the file name's timestamp
