@@ -188,15 +188,15 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 pivot, total_count = create_pivot_table(alarm_df, alarm)
                 alarm_pivot_tables[alarm] = (pivot, total_count)
                 
-                 # Display the alarm name with increased size
-    st.markdown(f"<h3 style='font-weight: bold;'>{alarm}</h3>", unsafe_allow_html=True)
-    st.markdown(f"<small><i>till {formatted_alarm_time}</i></small>", unsafe_allow_html=True)
-    st.markdown(f"**{alarm} Count:** {int(total_count)}")
+                # Display the alarm name with increased size
+                st.markdown(f"<h3 style='font-weight: bold;'>{alarm}</h3>", unsafe_allow_html=True)
+                st.markdown(f"<small><i>till {formatted_alarm_time}</i></small>", unsafe_allow_html=True)
+                st.markdown(f"**{alarm} Count:** {int(total_count)}")
                 
                 # Hide 'Alarm Name' and 'till' columns while displaying
                 displayed_pivot = pivot.drop(columns=['Alarm Name'], errors='ignore')  # Drop 'Alarm Name' column
-                st.dataframe(displayed_pivot)
-
+                st.dataframe(displayed_pivot)  # Display the pivot table
+            
             # Create download button for Alarm Report
             alarm_excel_data = to_excel(alarm_pivot_tables)
             st.download_button(
