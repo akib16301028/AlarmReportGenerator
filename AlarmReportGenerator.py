@@ -78,17 +78,24 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
-# Function to calculate days from Last Online Time
-def calculate_days_from_last_online(df):
+# Function to calculate time offline smartly (minutes, hours, or days)
+def calculate_time_offline(df):
     now = datetime.now()
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p')
     df['Hours Offline'] = (now - df['Last Online Time']).dt.total_seconds() / 3600  # Convert to hours
 
-    # Determine the Days Offline column based on Hours Offline
-    df['Days Offline'] = df['Hours Offline'].apply(lambda x: 
-        f"{int(x)} hours" if x < 24 else "> 1 Day" if x < 48 else str(int(x // 24)))
+    # Determine the Offline Duration column based on Hours Offline
+    def format_offline_duration(hours):
+        if hours < 1:
+            return f"{int(hours * 60)} minutes"  # Convert to minutes if less than 1 hour
+        elif hours < 24:
+            return f"{int(hours)} hours"  # Show in hours if less than 1 day
+        else:
+            return f"{int(hours // 24)} days"  # Show in days if more than 1 day
 
-    return df[['Days Offline', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
+    df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
+
+    return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
 
 # Function to extract the file name's timestamp
 def extract_timestamp(file_name):
@@ -129,25 +136,25 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
         st.dataframe(pivot_offline)
 
-        # Calculate days from Last Online Time
-        days_offline_df = calculate_days_from_last_online(offline_df)
+        # Calculate time offline smartly
+        time_offline_df = calculate_time_offline(offline_df)
 
-        # Create a summary table based on days offline
+        # Create a summary table based on offline duration
         summary_dict = {}
-        for index, row in days_offline_df.iterrows():
-            days = row['Days Offline']
-            if days not in summary_dict:
-                summary_dict[days] = []
-            summary_dict[days].append(row)
+        for index, row in time_offline_df.iterrows():
+            duration = row['Offline Duration']
+            if duration not in summary_dict:
+                summary_dict[duration] = []
+            summary_dict[duration].append(row)
 
         # Prepare DataFrame for display
         summary_data = []
-        for days, sites in summary_dict.items():
+        for duration, sites in summary_dict.items():
             for site in sites:
-                summary_data.append([days, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
+                summary_data.append([duration, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
         
         # Display the summary table
-        summary_df = pd.DataFrame(summary_data, columns=["Days Offline", "Site Name (Site Alias)", "Cluster", "Zone", "Last Online Time"])
+        summary_df = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name (Site Alias)", "Cluster", "Zone", "Last Online Time"])
         st.markdown("### Summary of Offline Sites")
         st.dataframe(summary_df)
 
