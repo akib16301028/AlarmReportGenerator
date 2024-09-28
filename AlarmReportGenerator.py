@@ -191,7 +191,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 # Display the alarm name
                 st.markdown(f"**{alarm}**")
                 st.markdown(f"<small><i>till {formatted_alarm_time}</i></small>", unsafe_allow_html=True)
-                st.markdown(f"**{alarm} Count:** {int(total_count)}")
+                st.markdown(f"**Alarm Count:** {int(total_count)}")
                 
                 # Hide 'Alarm Name' and 'till' columns while displaying
                 displayed_pivot = pivot.drop(columns=['Alarm Name'], errors='ignore')  # Drop 'Alarm Name' column
