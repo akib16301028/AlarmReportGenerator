@@ -163,27 +163,26 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-       # Calculate days from Last Online Time
-days_offline_df = calculate_days_from_last_online(offline_df)
+        # Calculate days from Last Online Time
+        days_offline_df = calculate_days_from_last_online(offline_df)
+        
+        # Create a summary table based on days offline
+        summary_dict = {}
+        for index, row in days_offline_df.iterrows():
+            days = row['Days Offline']
+            if days not in summary_dict:
+                summary_dict[days] = []
+            summary_dict[days].append(row)
 
-# Create a summary table based on days offline
-summary_dict = {}
-for index, row in days_offline_df.iterrows():
-    days = row['Days Offline']
-    if days not in summary_dict:
-        summary_dict[days] = []
-    summary_dict[days].append(row)
-
-# Display the summary table using dataframes
-for days, sites in summary_dict.items():
-    st.markdown(f"### {days} Days")
-    
-    # Create a DataFrame for the sites
-    summary_df = pd.DataFrame(sites, columns=['Site Alias', 'Cluster', 'Zone', 'Last Online Time'])
-    
-    # Display the DataFrame as a table
-    st.dataframe(summary_df)
-
+        # Display each group of sites under days offline as a table
+        for days, sites in summary_dict.items():
+            st.markdown(f"### {days} Days")
+            
+            # Create a DataFrame for the sites
+            summary_df = pd.DataFrame(sites, columns=['Site Alias', 'Cluster', 'Zone', 'Last Online Time'])
+            
+            # Display the DataFrame as a table
+            st.dataframe(summary_df)
 
         # Check if required columns exist for Alarm Report
         alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name']
