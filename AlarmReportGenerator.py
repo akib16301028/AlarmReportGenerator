@@ -119,9 +119,10 @@ if uploaded_file is not None:
                 pivot, total_count = create_pivot_table(df, alarm)
                 pivot_tables[alarm] = (pivot, total_count)
                 
-                # Display the alarm name and formatted timestamp
+                # Display the alarm name
                 st.markdown(f"### {alarm}")  # Main header
-                st.markdown(f"<small><i>till {formatted_time}</i></small>", unsafe_allow_html=True)  # Italicized date and time
+                # Italicized and smaller date and time
+                st.markdown(f"<small><i>till {formatted_time}</i></small>", unsafe_allow_html=True)
                 st.markdown(f"**Total Count:** {int(total_count)}")  # Separate line for total count
                 st.dataframe(pivot)  # Display the pivot table
             
