@@ -3,6 +3,7 @@ import pandas as pd
 import re
 from io import BytesIO
 from datetime import datetime
+import pytz
 
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
@@ -79,10 +80,9 @@ def create_offline_pivot(df):
     return pivot, total_offline_count
 
 # Function to calculate time offline smartly (minutes, hours, or days)
-def calculate_time_offline(df):
-    now = datetime.now()
+def calculate_time_offline(df, reference_time):
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p')
-    df['Hours Offline'] = (now - df['Last Online Time']).dt.total_seconds() / 3600  # Convert to hours
+    df['Hours Offline'] = (reference_time - df['Last Online Time']).dt.total_seconds() / 3600  # Convert to hours
 
     # Determine the Offline Duration column based on Hours Offline
     def format_offline_duration(hours):
@@ -97,13 +97,16 @@ def calculate_time_offline(df):
 
     return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
 
-# Function to extract the file name's timestamp
+# Function to extract the file name's timestamp and convert it to a datetime object
 def extract_timestamp(file_name):
     match = re.search(r'\((.*?)\)', file_name)
     if match:
         timestamp_str = match.group(1)
-        return timestamp_str.replace('_', ':')
-    return "Unknown Time"
+        # Convert the extracted string to datetime format
+        timestamp_str = timestamp_str.replace('th', '')  # Remove 'th' from date
+        reference_time = datetime.strptime(timestamp_str, '%B %d %Y, %I_%M_%S %p')
+        return reference_time  # Return the naive datetime
+    return None
 
 # Function to convert multiple DataFrames to Excel with separate sheets
 def to_excel(dfs_dict):
@@ -125,19 +128,23 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
-        formatted_alarm_time = extract_timestamp(uploaded_alarm_file.name)
-        formatted_offline_time = extract_timestamp(uploaded_offline_file.name)
+        # Extract timestamps from the filenames
+        reference_time = extract_timestamp(uploaded_offline_file.name)
+
+        # Convert reference_time to UTC (or any desired timezone) for consistency
+        dhaka_tz = pytz.timezone('Asia/Dhaka')
+        reference_time = dhaka_tz.localize(reference_time)  # Localize to Dhaka time
 
         # Process the Offline Report
         pivot_offline, total_offline_count = create_offline_pivot(offline_df)
 
         st.markdown("### Offline Report")
-        st.markdown(f"<small><i>till {formatted_offline_time}</i></small>", unsafe_allow_html=True)
+        st.markdown(f"<small><i>till {reference_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
         st.dataframe(pivot_offline)
 
-        # Calculate time offline smartly
-        time_offline_df = calculate_time_offline(offline_df)
+        # Calculate time offline smartly using the reference time
+        time_offline_df = calculate_time_offline(offline_df, reference_time)
 
         # Create a summary table based on offline duration
         summary_dict = {}
@@ -205,7 +212,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             st.download_button(
                 label="Download All Alarms Report as Excel",
                 data=combined_alarm_excel_data,
-                file_name=f"All_Alarms_Report_{formatted_alarm_time}.xlsx",
+                file_name=f"All_Alarms_Report_{reference_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
