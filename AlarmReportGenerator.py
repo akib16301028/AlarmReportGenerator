@@ -82,6 +82,10 @@ def create_offline_pivot(df):
 # Function to calculate time offline smartly (minutes, hours, or days)
 def calculate_time_offline(df, reference_time):
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p')
+    
+    # Make Last Online Time timezone-aware
+    df['Last Online Time'] = df['Last Online Time'].dt.tz_localize('Asia/Dhaka')
+
     df['Hours Offline'] = (reference_time - df['Last Online Time']).dt.total_seconds() / 3600  # Convert to hours
 
     # Determine the Offline Duration column based on Hours Offline
