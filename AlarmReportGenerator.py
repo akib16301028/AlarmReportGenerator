@@ -175,18 +175,14 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             summary_dict[days].append(row)
 
         # Display each group of sites under days offline as a table
-        day_keys = list(summary_dict.keys())
-        for i in range(0, len(day_keys), 2):  # Loop through day_keys in pairs
-            cols = st.columns(2)  # Create two columns
-            for j, days in enumerate(day_keys[i:i+2]):
-                with cols[j]:
-                    st.markdown(f"### {days} Days")
-                    
-                    # Create a DataFrame for the sites
-                    summary_df = pd.DataFrame(summary_dict[days], columns=['Site Alias', 'Cluster', 'Zone', 'Last Online Time'])
-                    
-                    # Display the DataFrame as a table
-                    st.dataframe(summary_df)
+        for days, sites in summary_dict.items():
+            st.markdown(f"### {days} Days")
+            
+            # Create a DataFrame for the sites
+            summary_df = pd.DataFrame(sites, columns=['Site Alias', 'Cluster', 'Zone', 'Last Online Time'])
+            
+            # Display the DataFrame as a table
+            st.dataframe(summary_df)
 
         # Check if required columns exist for Alarm Report
         alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name']
