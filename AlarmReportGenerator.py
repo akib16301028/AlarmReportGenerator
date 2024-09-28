@@ -61,29 +61,37 @@ def create_offline_pivot(df):
         'Site Alias': 'nunique'  # Count unique Site Alias for Total
     }).rename(columns={'Site Alias': 'Total'}).reset_index()
 
-    # Count occurrences for each duration type
-    duration_counts = df['Duration'].value_counts().to_dict()
-
-    # Create columns for different duration categories
-    for duration in ['Less than 24 hours', 'More than 24 hours', 'More than 72 hours']:
-        pivot[duration] = pivot['Duration'].apply(lambda x: 1 if x == duration else 0)
+    # Create a pivot table for duration categories
+    duration_counts = df['Duration'].value_counts()
     
+    # Create columns for different duration categories
+    duration_categories = ['Less than 24 hours', 'More than 24 hours', 'More than 72 hours']
+    
+    for category in duration_categories:
+        pivot[category] = pivot['Duration'].apply(lambda x: 1 if x == category else 0)
+    
+    # Summarize totals for each category
+    summary = pivot.groupby(['Cluster', 'Zone']).agg(
+        **{category: 'sum' for category in duration_categories},
+        Total=('Total', 'sum')
+    ).reset_index()
+
     # Add a total row for each column
-    total_row = pivot[['Less than 24 hours', 'more than 24 hours', 'more than 72 hours', 'Total']].sum().to_frame().T
-    total_row[['Cluster', 'Zone', 'Duration']] = ['Total', '', '']
+    total_row = summary[duration_categories + ['Total']].sum().to_frame().T
+    total_row[['Cluster', 'Zone']] = ['Total', '']
     
     # Append the total row
-    pivot = pd.concat([pivot, total_row], ignore_index=True)
+    summary = pd.concat([summary, total_row], ignore_index=True)
 
     # Merge same Cluster cells (simulate merged cells)
     last_cluster = None
-    for i in range(len(pivot)):
-        if pivot.at[i, 'Cluster'] == last_cluster:
-            pivot.at[i, 'Cluster'] = ''
+    for i in range(len(summary)):
+        if summary.at[i, 'Cluster'] == last_cluster:
+            summary.at[i, 'Cluster'] = ''
         else:
-            last_cluster = pivot.at[i, 'Cluster']
+            last_cluster = summary.at[i, 'Cluster']
 
-    return pivot
+    return summary
 
 # Function to extract the file name's timestamp
 def extract_timestamp(file_name):
@@ -162,7 +170,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             top_5_offline = pivot_offline.nlargest(5, 'Total')
             styled_offline = pivot_offline.style.apply(
                 lambda x: ['background-color: yellow' if i in top_5_offline.index else '' for i in range(len(x))],
-                subset=['Cluster', 'Zone', 'Duration', 'Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']
+                subset=['Cluster', 'Zone', 'Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']
             )
             st.dataframe(styled_offline)
 
@@ -181,7 +189,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 top_5_alarms = pivot.nlargest(5, 'Total')
                 styled_alarm = pivot.style.apply(
                     lambda x: ['background-color: yellow' if i in top_5_alarms.index else '' for i in range(len(x))],
-                    subset=['Cluster', 'Zone', 'Total']
+                    subset=['Cluster', 'Zone'] + client_columns + ['Total']
                 )
                 st.dataframe(styled_alarm)
 
@@ -194,5 +202,14 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
         
+        # Create download button for Offline Report
+        offline_excel_data = to_excel({'Offline Report': (pivot_offline, total_offline_count)})
+        st.download_button(
+            label="Download Offline Report as Excel",
+            data=offline_excel_data,
+            file_name=f"Offline RMS Report {formatted_offline_time}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
