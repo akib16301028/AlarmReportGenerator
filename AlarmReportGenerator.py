@@ -200,23 +200,15 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Combine both lists to maintain the desired order
             ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
 
-                        # Create a dictionary to store all pivot tables for current alarms
+            # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
             for alarm_name in ordered_alarm_names:
                 pivot, total_count = create_pivot_table(alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot, total_count)
 
-                # Display the headers for each alarm
-                st.markdown(f"### <b>Alarm Name: {alarm_name}</b>", unsafe_allow_html=True)
-                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-                st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
-
-                # Display the pivot table
-                st.dataframe(pivot)
-
-
-                # Display the alarm name
+                # Display the alarm header with required formatting
                 st.markdown(f"### <b>{alarm_name}</b>", unsafe_allow_html=True)
+                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
                 st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
                 st.dataframe(pivot)
 
