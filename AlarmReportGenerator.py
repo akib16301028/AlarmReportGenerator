@@ -99,9 +99,10 @@ def extract_timestamp(file_name):
     match = re.search(r'\((.*?)\)', file_name)
     if match:
         timestamp_str = match.group(1)
-        # Normalize day suffixes and replace underscores with colons for time
-        timestamp_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', timestamp_str).replace('_', ':')
-        return pd.to_datetime(timestamp_str, errors='coerce')  # No specific format
+        # Normalize day suffixes (st, nd, rd, th) and replace underscores with colons for time
+        timestamp_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', timestamp_str)  # Remove suffixes
+        timestamp_str = timestamp_str.replace('_', ':')  # Replace underscores with colons
+        return pd.to_datetime(timestamp_str, errors='coerce')  # Attempt to parse without a specific format
     return None
 
 
