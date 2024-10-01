@@ -99,11 +99,22 @@ def extract_timestamp(file_name):
     match = re.search(r'\((.*?)\)', file_name)
     if match:
         timestamp_str = match.group(1)
-        # Normalize day suffixes (st, nd, rd, th) and replace underscores with colons for time
+        # Normalize day suffixes (st, nd, rd, th)
         timestamp_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', timestamp_str)  # Remove suffixes
         timestamp_str = timestamp_str.replace('_', ':')  # Replace underscores with colons
-        return pd.to_datetime(timestamp_str, errors='coerce')  # Attempt to parse without a specific format
+        
+        # Optional: Strip any potential leading/trailing whitespace
+        timestamp_str = timestamp_str.strip()
+        
+        # Attempt to parse the timestamp
+        parsed_date = pd.to_datetime(timestamp_str, errors='coerce')
+        
+        if pd.isna(parsed_date):
+            st.error(f"Failed to parse timestamp: {timestamp_str}")  # Display error if parsing fails
+        
+        return parsed_date
     return None
+
 
 
 # Function to convert multiple DataFrames to Excel with separate sheets
