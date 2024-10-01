@@ -101,8 +101,9 @@ def extract_timestamp(file_name):
         timestamp_str = match.group(1)
         # Normalize day suffixes and replace underscores with colons for time
         timestamp_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', timestamp_str).replace('_', ':')
-        return pd.to_datetime(timestamp_str, format='%B %d %Y, %I:%M:%S %p', errors='coerce')
+        return pd.to_datetime(timestamp_str, errors='coerce')  # No specific format
     return None
+
 
 # Function to convert multiple DataFrames to Excel with separate sheets
 def to_excel(dfs_dict):
