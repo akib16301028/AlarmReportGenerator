@@ -99,9 +99,7 @@ def extract_timestamp(file_name):
     match = re.search(r'\((.*?)\)', file_name)
     if match:
         timestamp_str = match.group(1)
-        # Normalize day suffixes and replace underscores with colons for time
-        timestamp_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', timestamp_str).replace('_', ':')
-        return pd.to_datetime(timestamp_str, format='%B %d %Y, %I:%M:%S %p', errors='coerce')
+        return pd.to_datetime(timestamp_str.replace('_', ':'), format='%B %dth %Y, %I:%M:%S %p')
     return None
 
 # Function to convert multiple DataFrames to Excel with separate sheets
@@ -216,9 +214,9 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 # Apply time filtering for DCDB-01 Primary Disconnect
                 if alarm_name == 'DCDB-01 Primary Disconnect' and dcdb_time_filter:
                     # Filter the DataFrame based on the selected date range
-                    filtered_data = alarm_df[(
-                        alarm_df['Alarm Name'] == alarm_name) & (
-                        pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(dcdb_time_filter))
+                    filtered_data = alarm_df[
+                        (alarm_df['Alarm Name'] == alarm_name) &
+                        (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(dcdb_time_filter))
                     ]
                     alarm_data[alarm_name] = create_pivot_table(filtered_data, alarm_name)
                 else:
