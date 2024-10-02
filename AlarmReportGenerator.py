@@ -139,7 +139,11 @@ def calculate_time_offline(df, current_time):
 
     df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
 
+    # Format 'Last Online Time' to exclude microseconds
+    df['Last Online Time'] = df['Last Online Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
     return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
+
 
 # Function to extract the file name's timestamp
 def extract_timestamp(file_name):
