@@ -87,6 +87,8 @@ def create_pivot_table(df, alarm_name):
     
     return pivot, total_alarm_count
 
+import pandas as pd
+
 # Function to create pivot table for offline report
 def create_offline_pivot(df):
     df = df.drop_duplicates()
@@ -100,13 +102,14 @@ def create_offline_pivot(df):
     pivot = df.groupby(['Cluster', 'Zone']).agg({
         'Less than 24 hours': 'sum',
         'More than 24 hours': 'sum',
-        'More than 48 hours': 'sum',  # Include the new column here
+        'More than 48 hours': 'sum',
         'More than 72 hours': 'sum',
         'Site Alias': 'nunique'
     }).reset_index()
 
     pivot = pivot.rename(columns={'Site Alias': 'Total'})
     
+    # Total row calculation
     total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
@@ -125,7 +128,19 @@ def create_offline_pivot(df):
         else:
             last_cluster = pivot.at[i, 'Cluster']
     
+    # Renaming the columns to desired format
+    pivot = pivot.rename(columns={
+        'Less than 24 hours': '0+',
+        'More than 24 hours': '24+',
+        'More than 48 hours': '48+',
+        'More than 72 hours': '72+'
+    })
+
+    # Setting empty cells for the '48+' column if the value is zero
+    pivot['48+'] = pivot['48+'].replace("", "")  # This line ensures that if the value is 0, it stays empty
+
     return pivot, total_offline_count
+
 
     
     # Replace numeric columns in total_row with empty strings
