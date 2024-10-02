@@ -8,6 +8,19 @@ def extract_client(site_alias):
     match = re.search(r'\((.*?)\)', site_alias)
     return match.group(1) if match else None
 
+# Function to categorize Duration Slot (Hours)
+def categorize_duration(hours):
+    if 0 <= hours < 2:
+        return '0+'
+    elif 2 <= hours < 4:
+        return '2+'
+    elif 4 <= hours < 8:
+        return '4+'
+    elif hours >= 8:
+        return '8+'
+    else:
+        return 'Unknown'
+
 # Function to create pivot table for a specific alarm
 def create_pivot_table(df, alarm_name):
     alarm_df = df[df['Alarm Name'] == alarm_name].copy()
@@ -15,26 +28,51 @@ def create_pivot_table(df, alarm_name):
     if alarm_name == 'DCDB-01 Primary Disconnect':
         alarm_df = alarm_df[~alarm_df['RMS Station'].str.startswith('L')]
     
-    pivot = pd.pivot_table(
+    # Categorize Duration Slot (Hours)
+    alarm_df['Duration Category'] = alarm_df['Duration Slot (Hours)'].apply(categorize_duration)
+    
+    # Create pivot tables for each Duration Category
+    pivot_total = pd.pivot_table(
         alarm_df,
         index=['Cluster', 'Zone'],
         columns='Client',
         values='Site Alias',
         aggfunc='count',
         fill_value=0
-    )
+    ).reset_index()
     
-    pivot = pivot.reset_index()
-    client_columns = [col for col in pivot.columns if col not in ['Cluster', 'Zone']]
-    pivot['Total'] = pivot[client_columns].sum(axis=1)
+    client_columns = [col for col in pivot_total.columns if col not in ['Cluster', 'Zone']]
+    pivot_total['Total'] = pivot_total[client_columns].sum(axis=1)
     
-    total_row = pivot[client_columns + ['Total']].sum().to_frame().T
+    # Pivot for Duration Categories
+    pivot_duration = pd.pivot_table(
+        alarm_df,
+        index=['Cluster', 'Zone'],
+        columns='Duration Category',
+        values='Site Alias',
+        aggfunc='count',
+        fill_value=0
+    ).reset_index()
+    
+    # Merge the two pivot tables
+    pivot = pd.merge(pivot_total, pivot_duration, on=['Cluster', 'Zone'], how='left')
+    
+    # Ensure all Duration Categories are present
+    for cat in ['0+', '2+', '4+', '8+']:
+        if cat not in pivot.columns:
+            pivot[cat] = 0
+    
+    # Reorder columns
+    pivot = pivot[['Cluster', 'Zone'] + client_columns + ['Total', '0+', '2+', '4+', '8+']]
+    
+    # Add Total row
+    total_row = pivot.sum(numeric_only=True).to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
-    
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
     total_alarm_count = pivot['Total'].iloc[-1]
     
+    # Remove repeated Cluster names for better readability
     last_cluster = None
     for i in range(len(pivot)):
         if pivot.at[i, 'Cluster'] == last_cluster:
@@ -113,6 +151,13 @@ def to_excel(dfs_dict):
             df.to_excel(writer, sheet_name=valid_sheet_name, index=False)
     return output.getvalue()
 
+# Function to create site-wise log table
+def create_site_wise_log(df, selected_alarms):
+    filtered_df = df[df['Alarm Name'].isin(selected_alarms)].copy()
+    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Time']]
+    filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
+    return filtered_df
+
 # Streamlit app
 st.title("StatusMatrix")
 
@@ -180,11 +225,28 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 key=f"date_{alarm}"
             )
 
+            # Ensure date range is a tuple of two dates
+            if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
+                start_date, end_date = selected_date_range
+            else:
+                start_date, end_date = min_date, max_date
+
             # Store the selected filters
             alarm_filters[alarm] = {
                 "cluster": selected_alarm_cluster,
-                "date_range": selected_date_range
+                "date_range": (start_date, end_date)
             }
+
+        # === Site-Wise Log Filters ===
+        st.sidebar.subheader("Site-Wise Log Filters")
+        view_site_wise = st.sidebar.checkbox("View Site-Wise Log")
+        if view_site_wise:
+            site_wise_alarms = st.sidebar.multiselect(
+                "Select Alarms for Site-Wise Log",
+                options=alarm_names,
+                default=alarm_names,
+                help="Select alarms to include in the site-wise log."
+            )
 
         # Process the Offline Report
         pivot_offline, total_offline_count = create_offline_pivot(offline_df)
@@ -237,8 +299,17 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.markdown(f"**Total Offline Sites:** {filtered_summary_df['Site Name'].nunique()}")
         st.dataframe(filtered_summary_df)
 
+        # === Site-Wise Log Display ===
+        if view_site_wise:
+            st.markdown("### Site-Wise Log")
+            if site_wise_alarms:
+                site_wise_log_df = create_site_wise_log(alarm_df, site_wise_alarms)
+                st.dataframe(site_wise_log_df)
+            else:
+                st.info("No alarms selected for Site-Wise Log.")
+
         # Check for required columns in Alarm Report
-        alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time']
+        alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time', 'Duration Slot (Hours)']
         if not all(col in alarm_df.columns for col in alarm_required_columns):
             st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
         else:
