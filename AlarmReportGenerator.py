@@ -66,7 +66,8 @@ def create_pivot_table(df, alarm_name):
     pivot = pivot[['Cluster', 'Zone'] + client_columns + ['Total', '0+', '2+', '4+', '8+']]
     
     # Add Total row
-    total_row = pivot.select_dtypes(include=['number']).sum().to_frame().T
+    numeric_cols = pivot.select_dtypes(include=['number']).columns
+    total_row = pivot[numeric_cols].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
@@ -152,52 +153,29 @@ def to_excel(dfs_dict):
     return output.getvalue()
 
 # Function to create site-wise log table
-def create_site_wise_log(df, selected_alarms):
-    filtered_df = df[df['Alarm Name'] == selected_alarms].copy()
+def create_site_wise_log(df, selected_alarm):
+    if selected_alarm == "All":
+        filtered_df = df.copy()
+    else:
+        filtered_df = df[df['Alarm Name'] == selected_alarm].copy()
     filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time']]
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-# Function to style DataFrame: hide zeros, apply background color to specific columns, add double borders
+# Function to style DataFrame: hide zeros, apply background color to specific columns
 def style_dataframe(df, duration_cols):
-    # Replace 0 with NaN
-    df = df.replace(0, pd.NA)
+    # Replace 0 with empty strings in duration columns
+    df_style = df.copy()
+    df_style[duration_cols] = df_style[duration_cols].replace(0, "")
 
-    # Define styles
-    styles = [
-        # Style for Duration Columns
-        {
-            'selector': 'th.col0+, th.col2+, th.col4+, th.col8+',
-            'props': [('background-color', '#f0f0f0')]
-        },
-        {
-            'selector': 'td.col0+, td.col2+, td.col4+, td.col8+',
-            'props': [('background-color', '#f0f0f0')]
-        },
-        # Double border between original and duration columns
-        {
-            'selector': 'th.col0+',
-            'props': [('border-left', '3px double black')]
-        },
-        {
-            'selector': 'td.col0+',
-            'props': [('border-left', '3px double black')]
-        },
-    ]
+    # Create Styler object
+    styler = df_style.style
 
-    # Create a Styler object
-    styler = df.style
-
-    # Apply background color to duration columns
-    for col in duration_cols:
-        styler = styler.applymap(lambda x: '', subset=[col])  # Reset any existing styles
-        styler = styler.applymap(lambda x: 'background-color: #f0f0f0', subset=[col])
-
-    # Add double border between column groups
-    styler.set_table_styles(styles)
-
-    # Hide zeros by replacing them with empty strings
-    styler = styler.format({col: lambda x: "" if pd.isna(x) else x for col in duration_cols})
+    # Apply background color to duration columns (darker shade for dark mode)
+    styler = styler.applymap(
+        lambda x: 'background-color: #444444; color: white', 
+        subset=duration_cols
+    )
 
     return styler
 
@@ -362,18 +340,20 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
             # Process alarms based on selection
             for alarm_name in ordered_alarm_names:
-                # Initialize the filter criteria
+                # Skip alarms if a specific alarm is selected and it's not the current one
                 if selected_alarm != "All" and alarm_name != selected_alarm:
-                    continue  # Skip alarms not selected
+                    continue
 
+                # Initialize the filter criteria
                 filtered_alarm_df = alarm_df.copy()
 
                 if selected_alarm != "All":
-                    filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Alarm Name'] == selected_alarm]
+                    # Filter by selected alarm
+                    filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Alarm Name'] == alarm_name]
+                    
                     # Apply cluster filter
-                    cluster_selected = selected_offline_cluster
-                    if cluster_selected != "All":
-                        filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Cluster'] == cluster_selected]
+                    if selected_offline_cluster != "All":
+                        filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Cluster'] == selected_offline_cluster]
                     
                     # Apply date range filter
                     alarm_dates = pd.to_datetime(filtered_alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
