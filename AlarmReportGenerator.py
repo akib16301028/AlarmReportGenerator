@@ -99,7 +99,6 @@ def extract_timestamp(file_name):
     match = re.search(r'\((.*?)\)', file_name)
     if match:
         timestamp_str = match.group(1)
-        # Normalize day suffixes and replace underscores with colons for time
         timestamp_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', timestamp_str).replace('_', ':')
         return pd.to_datetime(timestamp_str, format='%B %d %Y, %I:%M:%S %p', errors='coerce')
     return None
@@ -133,6 +132,16 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.markdown("### Offline Report")
         st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
+
+        # Filters for Offline Report
+        cluster_filter_offline = st.selectbox("Filter by Cluster", options=["All"] + offline_df['Cluster'].unique().tolist())
+        zone_filter_offline = st.selectbox("Filter by Zone", options=["All"] + offline_df['Zone'].unique().tolist())
+        
+        if cluster_filter_offline != "All":
+            offline_df = offline_df[offline_df['Cluster'] == cluster_filter_offline]
+        if zone_filter_offline != "All":
+            offline_df = offline_df[offline_df['Zone'] == zone_filter_offline]
+
         st.dataframe(pivot_offline)
 
         # Calculate time offline smartly using the offline time
@@ -196,48 +205,44 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             ]
 
             # Separate prioritized alarms from the rest
-            prioritized_alarms = [name for name in priority_order if name in alarm_names]
-            non_prioritized_alarms = [name for name in alarm_names if name not in priority_order]
+            prioritized_alarms = sorted([alarm for alarm in alarm_names if alarm in priority_order], key=lambda x: priority_order.index(x))
+            other_alarms = sorted([alarm for alarm in alarm_names if alarm not in priority_order])
 
-            # Combine both lists to maintain the desired order
-            ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
+            # Combine prioritized and other alarms
+            all_alarm_names = prioritized_alarms + other_alarms
 
-            # Create a dictionary to store all pivot tables for current alarms
-            alarm_data = {}
+            # Create a dictionary to hold pivot tables and totals for download
+            alarm_report_data = {}
 
-            # Create a date filter for all alarms
-            date_filter = st.date_input("Select Date Range for Alarms", [])
+            # Filters for each current alarm table
+            for alarm_name in all_alarm_names:
+                pivot_table, total_alarm_count = create_pivot_table(alarm_df, alarm_name)
+                alarm_report_data[alarm_name] = pivot_table
+                
+                st.markdown(f"#### {alarm_name} - Total Alarms: {total_alarm_count}")
 
-            for alarm_name in ordered_alarm_names:
-                data = create_pivot_table(alarm_df, alarm_name)
+                cluster_filter = st.selectbox(f"Filter by Cluster for {alarm_name}", options=["All"] + alarm_df['Cluster'].unique().tolist())
+                zone_filter = st.selectbox(f"Filter by Zone for {alarm_name}", options=["All"] + alarm_df['Zone'].unique().tolist())
+                date_filter = st.date_input(f"Select Date for {alarm_name}", value=pd.to_datetime('today'))
 
-                # Apply time filtering for alarms
-                if date_filter:
-                    filtered_data = alarm_df[(
-                        alarm_df['Alarm Name'] == alarm_name) & (
-                        pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(date_filter))
-                    ]
-                    alarm_data[alarm_name] = create_pivot_table(filtered_data, alarm_name)
-                else:
-                    alarm_data[alarm_name] = data
+                if cluster_filter != "All":
+                    pivot_table = pivot_table[pivot_table['Cluster'] == cluster_filter]
+                if zone_filter != "All":
+                    pivot_table = pivot_table[pivot_table['Zone'] == zone_filter]
+                if date_filter is not None:
+                    pivot_table = pivot_table[pd.to_datetime(pivot_table['Alarm Time']).dt.date == date_filter]
 
-            # Display each pivot table for the current alarms
-            for alarm_name, (pivot, total_count) in alarm_data.items():
-                st.markdown(f"### <b>{alarm_name}</b>", unsafe_allow_html=True)
-                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-                st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
-                st.dataframe(pivot)
+                st.dataframe(pivot_table)
 
-            # Prepare download for Current Alarms Report only if there is data
-            if alarm_data:
-                current_alarm_excel_data = to_excel({alarm_name: data[0] for alarm_name, data in alarm_data.items()})
-                st.download_button(
-                    label="Download Current Alarms Report",
-                    data=current_alarm_excel_data,
-                    file_name=f"Current Alarms Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            else:
-                st.warning("No current alarm data available for export.")
+            # Prepare download for Current Alarms Report
+            current_alarm_excel_data = to_excel(alarm_report_data)
+
+            st.download_button(
+                label="Download Current Alarms Report",
+                data=current_alarm_excel_data,
+                file_name=f"Current Alarms Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
     except Exception as e:
-        st.error(f"An error occurred while processing the files: {e}")
+        st.error(f"An error occurred: {str(e)}")
