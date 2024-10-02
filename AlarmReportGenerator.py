@@ -135,27 +135,23 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
         
-        # Create filters for Offline Report
-        cluster_options = ['All'] + offline_df['Cluster'].unique().tolist()
-        zone_options = ['All'] + offline_df['Zone'].unique().tolist()
-        selected_cluster = st.selectbox("Select Cluster", cluster_options)
-        selected_zone = st.selectbox("Select Zone", zone_options)
+        # Filter for Offline Report table
+        zone_filter_offline = st.selectbox("Select Zone", options=['All'] + sorted(offline_df['Zone'].unique().tolist()), index=0)
+        cluster_filter_offline = st.selectbox("Select Cluster", options=['All'] + sorted(offline_df['Cluster'].unique().tolist()), index=0)
         
-        filtered_offline = offline_df.copy()
-        if selected_cluster != 'All':
-            filtered_offline = filtered_offline[filtered_offline['Cluster'] == selected_cluster]
-        if selected_zone != 'All':
-            filtered_offline = filtered_offline[filtered_offline['Zone'] == selected_zone]
+        # Filter the data based on selections
+        filtered_offline_df = offline_df.copy()
+        if zone_filter_offline != 'All':
+            filtered_offline_df = filtered_offline_df[filtered_offline_df['Zone'] == zone_filter_offline]
+        if cluster_filter_offline != 'All':
+            filtered_offline_df = filtered_offline_df[filtered_offline_df['Cluster'] == cluster_filter_offline]
 
-        st.dataframe(create_offline_pivot(filtered_offline)[0])
+        st.dataframe(create_offline_pivot(filtered_offline_df)[0])
 
         # Calculate time offline smartly using the offline time
-        time_offline_df = calculate_time_offline(offline_df, offline_time)
+        time_offline_df = calculate_time_offline(filtered_offline_df, offline_time)
 
-        # Filter for Summary of Offline Sites
-        st.markdown("### Summary of Offline Sites")
-        st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-        
+        # Create a summary table based on offline duration
         summary_dict = {}
         for index, row in time_offline_df.iterrows():
             duration = row['Offline Duration']
@@ -169,22 +165,21 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             for site in sites:
                 summary_data.append([duration, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
         
-        # Display the summary table with filters
+        # Display the summary table
         summary_df = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name", "Cluster", "Zone", "Last Online Time"])
+        st.markdown("### Summary of Offline Sites")
         
-        # Create filters for Summary of Offline Sites
-        cluster_options_summary = ['All'] + summary_df['Cluster'].unique().tolist()
-        zone_options_summary = ['All'] + summary_df['Zone'].unique().tolist()
-        selected_cluster_summary = st.selectbox("Select Cluster for Summary", cluster_options_summary)
-        selected_zone_summary = st.selectbox("Select Zone for Summary", zone_options_summary)
+        # Filter for Summary of Offline Sites table
+        zone_filter_summary = st.selectbox("Select Zone", options=['All'] + sorted(summary_df['Zone'].unique().tolist()), index=0, key='summary_zone')
+        cluster_filter_summary = st.selectbox("Select Cluster", options=['All'] + sorted(summary_df['Cluster'].unique().tolist()), index=0, key='summary_cluster')
         
-        filtered_summary = summary_df.copy()
-        if selected_cluster_summary != 'All':
-            filtered_summary = filtered_summary[filtered_summary['Cluster'] == selected_cluster_summary]
-        if selected_zone_summary != 'All':
-            filtered_summary = filtered_summary[filtered_summary['Zone'] == selected_zone_summary]
-
-        st.dataframe(filtered_summary)
+        filtered_summary_df = summary_df.copy()
+        if zone_filter_summary != 'All':
+            filtered_summary_df = filtered_summary_df[filtered_summary_df['Zone'] == zone_filter_summary]
+        if cluster_filter_summary != 'All':
+            filtered_summary_df = filtered_summary_df[filtered_summary_df['Cluster'] == cluster_filter_summary]
+        
+        st.dataframe(filtered_summary_df)
 
         # Check for required columns in Alarm Report
         alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time']
@@ -195,30 +190,43 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             alarm_df = alarm_df[~alarm_df['Client'].isnull()]
 
             # Prepare download for Offline Report
-            dfs_dict = {
-                "Offline Report": create_offline_pivot(offline_df)[0],
-                "Summary of Offline Sites": summary_df
+            offline_report_data = {
+                "Offline Summary": pivot_offline,
+                "Offline Details": summary_df
             }
+            offline_excel_data = to_excel(offline_report_data)
 
-            excel_data = to_excel(dfs_dict)
-            st.download_button("Download Reports", excel_data, "Reports.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button("Download Offline Report", offline_excel_data, "offline_report.xlsx")
 
-            # Filter for Current Alarms Report
+            # Current Alarms Report
             st.markdown("### Current Alarms Report")
             st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
 
-            alarm_names = alarm_df['Alarm Name'].unique().tolist()
-            selected_alarm = st.selectbox("Select Alarm Name", ['All'] + alarm_names)
-            
-            filtered_alarms = alarm_df.copy()
-            if selected_alarm != 'All':
-                filtered_alarms = filtered_alarms[filtered_alarms['Alarm Name'] == selected_alarm]
+            # Get unique alarms for dropdown
+            unique_alarms = alarm_df['Alarm Name'].unique()
+            alarm_tables = {}
 
-            alarm_pivot, total_alarm_count = create_pivot_table(filtered_alarms, selected_alarm)
-            st.dataframe(alarm_pivot)
+            # Create a table for each alarm
+            for alarm in unique_alarms:
+                pivot_table, total_alarm_count = create_pivot_table(alarm_df, alarm)
+                alarm_tables[alarm] = (pivot_table, total_alarm_count)
 
-            # Show total alarm count
-            st.markdown(f"**Total Alarms Count:** {total_alarm_count}")
+            # Filter options for Current Alarms Report
+            for alarm_name, (pivot_table, total_alarm_count) in alarm_tables.items():
+                st.markdown(f"**{alarm_name}** (Total: {total_alarm_count})")
+
+                # Filters for Current Alarms Report tables
+                zone_filter_alarms = st.selectbox(f"Select Zone for {alarm_name}", options=['All'] + sorted(alarm_df['Zone'].unique().tolist()), index=0, key=f'zone_{alarm_name}')
+                cluster_filter_alarms = st.selectbox(f"Select Cluster for {alarm_name}", options=['All'] + sorted(alarm_df['Cluster'].unique().tolist()), index=0, key=f'cluster_{alarm_name}')
+                
+                # Filter the data based on selections
+                filtered_alarm_df = alarm_df.copy()
+                if zone_filter_alarms != 'All':
+                    filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Zone'] == zone_filter_alarms]
+                if cluster_filter_alarms != 'All':
+                    filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Cluster'] == cluster_filter_alarms]
+
+                st.dataframe(create_pivot_table(filtered_alarm_df, alarm_name)[0])
 
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"Error processing files: {e}")
