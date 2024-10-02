@@ -116,61 +116,95 @@ def to_excel(dfs_dict):
 # Streamlit app
 st.title("StatusMatrix")
 
+# File Uploads
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
 uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
+        # Read Excel files starting from the third row (header=2)
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
+        # Extract timestamps from file names
         current_time = extract_timestamp(uploaded_alarm_file.name)
         offline_time = extract_timestamp(uploaded_offline_file.name)
 
-        # Process the Offline Report
-        pivot_offline, total_offline_count = create_offline_pivot(offline_df)
+        # Initialize Sidebar Filters
+        st.sidebar.header("Filters")
 
         # === Offline Report Filters ===
-        st.sidebar.header("Offline Report Filters")
+        st.sidebar.subheader("Offline Report Filters")
         # Get unique clusters for filtering
-        offline_clusters = offline_df['Cluster'].dropna().unique().tolist()
+        offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
         selected_offline_clusters = st.sidebar.multiselect(
             "Select Clusters for Offline Report",
             options=offline_clusters,
             default=offline_clusters
         )
 
-        # Apply cluster filter to pivot_offline
-        if 'Total' in pivot_offline['Cluster'].values:
-            filtered_pivot_offline = pivot_offline[
-                (pivot_offline['Cluster'].isin(selected_offline_clusters)) | (pivot_offline['Cluster'] == 'Total')
-            ]
-        else:
-            filtered_pivot_offline = pivot_offline[pivot_offline['Cluster'].isin(selected_offline_clusters)]
+        # === Current Alarms Filters ===
+        st.sidebar.subheader("Current Alarms Filters")
+        # Get unique alarm names
+        alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
+        selected_alarms = st.sidebar.multiselect(
+            "Select Alarms to Filter",
+            options=alarm_names,
+            default=[],
+            help="Select alarms to apply specific filters."
+        )
 
-        # Similarly, filter the summary_df
-        # Calculate summary_df after filtering pivot_offline
-        summary_pivot = filtered_pivot_offline.copy()
-        # Exclude the total row if present
-        if 'Total' in summary_pivot['Cluster'].values:
-            summary_pivot = summary_pivot[summary_pivot['Cluster'] != 'Total']
-        summary_df = summary_pivot.melt(id_vars=['Cluster', 'Zone'], 
-                                        value_vars=['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total'],
-                                        var_name='Duration',
-                                        value_name='Count')
-        # Aggregate to get summary
-        summary_df = summary_df.groupby('Duration')['Count'].sum().reset_index()
+        # Dictionary to hold per-alarm filters
+        alarm_filters = {}
+
+        for alarm in selected_alarms:
+            st.sidebar.markdown(f"**{alarm} Filters**")
+            # Cluster filter for the alarm
+            alarm_clusters = sorted(alarm_df[alarm_df['Alarm Name'] == alarm]['Cluster'].dropna().unique().tolist())
+            selected_alarm_cluster = st.sidebar.selectbox(
+                f"Select Cluster for {alarm}",
+                options=["All"] + alarm_clusters,
+                index=0,
+                key=f"cluster_{alarm}"
+            )
+
+            # Date range filter for the alarm
+            alarm_dates = pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
+            min_date = alarm_dates.min().date()
+            max_date = alarm_dates.max().date()
+            selected_date_range = st.sidebar.date_input(
+                f"Select Date Range for {alarm}",
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date,
+                key=f"date_{alarm}"
+            )
+
+            # Store the selected filters
+            alarm_filters[alarm] = {
+                "cluster": selected_alarm_cluster,
+                "date_range": selected_date_range
+            }
+
+        # Process the Offline Report
+        pivot_offline, total_offline_count = create_offline_pivot(offline_df)
+
+        # Apply Offline Cluster Filters
+        if selected_offline_clusters:
+            if 'Total' in pivot_offline['Cluster'].values:
+                filtered_pivot_offline = pivot_offline[
+                    (pivot_offline['Cluster'].isin(selected_offline_clusters)) | (pivot_offline['Cluster'] == 'Total')
+                ]
+            else:
+                filtered_pivot_offline = pivot_offline[pivot_offline['Cluster'].isin(selected_offline_clusters)]
+        else:
+            filtered_pivot_offline = pivot_offline.copy()
 
         # Display the Offline Report
         st.markdown("### Offline Report")
         st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
         st.dataframe(filtered_pivot_offline)
-
-        # === Summary of Offline Sites Filters ===
-        st.markdown("### Summary of Offline Sites")
-        st.markdown(f"**Total Offline Sites:** {summary_df['Count'].sum()}")
-        st.dataframe(summary_df)
 
         # Calculate time offline smartly using the offline time
         time_offline_df = calculate_time_offline(offline_df, offline_time)
@@ -189,11 +223,18 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             for site in sites:
                 summary_data.append([duration, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
         
-        # Apply cluster filter to summary_df
+        # Convert to DataFrame
         summary_df_full = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name", "Cluster", "Zone", "Last Online Time"])
-        filtered_summary_df = summary_df_full[summary_df_full['Cluster'].isin(selected_offline_clusters)]
 
-        st.markdown("### Detailed Summary of Offline Sites")
+        # Apply Offline Cluster Filters to Summary
+        if selected_offline_clusters:
+            filtered_summary_df = summary_df_full[summary_df_full['Cluster'].isin(selected_offline_clusters)]
+        else:
+            filtered_summary_df = summary_df_full.copy()
+
+        # Display the Summary of Offline Sites
+        st.markdown("### Summary of Offline Sites")
+        st.markdown(f"**Total Offline Sites:** {filtered_summary_df['Site Name'].nunique()}")
         st.dataframe(filtered_summary_df)
 
         # Check for required columns in Alarm Report
@@ -201,6 +242,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         if not all(col in alarm_df.columns for col in alarm_required_columns):
             st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
         else:
+            # Extract client information
             alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
             alarm_df = alarm_df[~alarm_df['Client'].isnull()]
 
@@ -222,8 +264,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             st.markdown(f"### Current Alarms Report")
             st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
 
-            alarm_names = alarm_df['Alarm Name'].unique()
-
             # Define the priority order for the alarm names
             priority_order = [
                 'Mains Fail',
@@ -244,63 +284,31 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
 
-            # Add a time filter for the "DCDB-01 Primary Disconnect" alarm
-            dcdb_time_filter = None
-            if 'DCDB-01 Primary Disconnect' in ordered_alarm_names:
-                dcdb_time_filter = st.sidebar.date_input(
-                    "Select Date Range for DCDB-01 Primary Disconnect",
-                    [],
-                    key='dcdb_date_filter'
-                )
-                # Ensure it's a range
-                if len(dcdb_time_filter) == 2:
-                    dcdb_start_date, dcdb_end_date = dcdb_time_filter
-                else:
-                    dcdb_start_date, dcdb_end_date = None, None
-
-            # === Current Alarms Filters ===
-            # We'll create a separate filter for each alarm
             for alarm_name in ordered_alarm_names:
-                st.markdown(f"#### Filters for {alarm_name}")
-                # Cluster-wise filter
-                alarm_clusters = alarm_df['Cluster'].dropna().unique().tolist()
-                selected_alarm_clusters = st.multiselect(
-                    f"Select Clusters for {alarm_name}",
-                    options=alarm_clusters,
-                    default=alarm_clusters,
-                    key=f"cluster_filter_{alarm_name}"
-                )
-                # Date range filter
-                alarm_dates = pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
-                min_date = alarm_dates.min().date()
-                max_date = alarm_dates.max().date()
-                selected_date_range = st.date_input(
-                    f"Select Date Range for {alarm_name}",
-                    value=(min_date, max_date),
-                    min_value=min_date,
-                    max_value=max_date,
-                    key=f"date_filter_{alarm_name}"
-                )
-                if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
-                    start_date, end_date = selected_date_range
-                else:
-                    start_date, end_date = min_date, max_date
+                # Initialize the filter criteria
+                filtered_alarm_df = alarm_df[alarm_df['Alarm Name'] == alarm_name].copy()
 
-                # Filter the DataFrame based on selected clusters and date range
-                filtered_alarm_df = alarm_df[
-                    (alarm_df['Alarm Name'] == alarm_name) &
-                    (alarm_df['Cluster'].isin(selected_alarm_clusters)) &
-                    (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce').dt.date >= start_date) &
-                    (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce').dt.date <= end_date)
-                ]
-
-                # If it's "DCDB-01 Primary Disconnect", apply additional filter if date range is selected
-                if alarm_name == 'DCDB-01 Primary Disconnect' and dcdb_start_date and dcdb_end_date:
-                    filtered_alarm_df = alarm_df[
-                        (alarm_df['Alarm Name'] == alarm_name) &
-                        (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce').dt.date >= dcdb_start_date) &
-                        (pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce').dt.date <= dcdb_end_date)
+                # Apply cluster filter if selected
+                if alarm_name in alarm_filters:
+                    cluster_selected = alarm_filters[alarm_name]['cluster']
+                    if cluster_selected != "All":
+                        filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Cluster'] == cluster_selected]
+                    
+                    # Apply date range filter
+                    start_date, end_date = alarm_filters[alarm_name]['date_range']
+                    filtered_alarm_df['Alarm Time Parsed'] = pd.to_datetime(
+                        filtered_alarm_df['Alarm Time'], 
+                        format='%d/%m/%Y %I:%M:%S %p', 
+                        errors='coerce'
+                    )
+                    filtered_alarm_df = filtered_alarm_df[
+                        (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) &
+                        (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
                     ]
+
+                # Special filter for "DCDB-01 Primary Disconnect"
+                if alarm_name == 'DCDB-01 Primary Disconnect':
+                    filtered_alarm_df = filtered_alarm_df[~filtered_alarm_df['RMS Station'].str.startswith('L')]
 
                 # Create pivot table for the filtered data
                 pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
