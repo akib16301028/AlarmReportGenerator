@@ -62,16 +62,18 @@ def create_pivot_table(df, alarm_name):
         if cat not in pivot.columns:
             pivot[cat] = 0
     
+    # Replace 0 with empty strings
+    pivot.replace(0, "", inplace=True)
+
     # Reorder columns: Original client columns + 'Total' + Duration Categories
     pivot = pivot[['Cluster', 'Zone'] + client_columns + ['Total', '0+', '2+', '4+', '8+']]
     
     # Add Total row
-    numeric_cols = pivot.select_dtypes(include=['number']).columns
-    total_row = pivot[numeric_cols].sum().to_frame().T
+    total_row = pivot[pivot.columns[2:]].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
     # Replace numeric columns in total_row with empty strings
-    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
+    total_row.replace(0, "", inplace=True)
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
@@ -108,13 +110,13 @@ def create_offline_pivot(df):
     pivot = pivot.rename(columns={'Site Alias': 'Total'})
     
     # Replace 0 with empty strings
-    pivot[['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']] = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']].replace(0, "")
+    pivot.replace(0, "", inplace=True)
 
     total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
     # Replace numeric columns in total_row with empty strings
-    total_row[['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']] = total_row[['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']].replace(0, "").astype(str)
+    total_row.replace(0, "", inplace=True)
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
