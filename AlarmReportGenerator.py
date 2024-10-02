@@ -183,7 +183,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     
     # Define background colors
     cell_bg_color = '#f0f0f0'
-    font_color = 'black' if not is_dark_mode else 'white'
+    font_color = 'black' if not is_dark_mode else 'black'
     
     # Create a Styler object
     styler = df_style.style
@@ -199,7 +199,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
     if total_row_mask.any():
         styler = styler.apply(
-            lambda x: ['background-color: #f0f0f0; color: white' if total_row_mask.loc[x.name] else '' for _ in x],
+            lambda x: ['background-color: #f0f0f0; color: black' if total_row_mask.loc[x.name] else '' for _ in x],
             axis=1
         )
         # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
