@@ -256,7 +256,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         )
 
         # === Current Alarms Filters ===
-        st.sidebar.subheader("Current Alarms Filters [select alarm first]")
+        st.sidebar.subheader("Current Alarms Filters")
         st.sidebar.text("[select alarm first]")
         # Get unique alarm names
         alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
