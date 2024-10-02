@@ -155,19 +155,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Display the summary table
         summary_df = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name", "Cluster", "Zone", "Last Online Time"])
         st.markdown("### Summary of Offline Sites")
-
-        # Filter options for Summary of Offline Sites
-        cluster_options = summary_df['Cluster'].unique()
-        selected_cluster = st.selectbox("Select Cluster", options=["All"] + list(cluster_options), key="summary_cluster")
-
-        zone_options = summary_df['Zone'].unique()
-        selected_zone = st.selectbox("Select Zone", options=["All"] + list(zone_options), key="summary_zone")
-
-        if selected_cluster != "All":
-            summary_df = summary_df[summary_df['Cluster'] == selected_cluster]
-        if selected_zone != "All":
-            summary_df = summary_df[summary_df['Zone'] == selected_zone]
-
         st.dataframe(summary_df)
 
         # Check for required columns in Alarm Report
@@ -218,55 +205,73 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
 
-            # Filter options for Current Alarms Report
-            cluster_options = alarm_df['Cluster'].unique()
-            selected_cluster = st.selectbox("Select Cluster for Alarms", options=["All"] + list(cluster_options), key="alarms_cluster")
+            # Add filter icon with some styling
+            st.markdown("""
+                <style>
+                .filter-icon {
+                    display: inline-block;
+                    width: 24px;
+                    height: 24px;
+                    background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Filter_icon.svg/512px-Filter_icon.svg.png');
+                    background-size: cover;
+                    margin-right: 8px;
+                    vertical-align: middle;
+                }
+                </style>
+                <div class="filter-icon"></div>
+                <h4>Filters</h4>
+            """, unsafe_allow_html=True)
 
-            zone_options = alarm_df['Zone'].unique()
-            selected_zone = st.selectbox("Select Zone for Alarms", options=["All"] + list(zone_options), key="alarms_zone")
-
-            # Add a time filter for the "DCDB-01 Primary Disconnect" alarm
-            dcdb_time_filter = None
-            if 'DCDB-01 Primary Disconnect' in ordered_alarm_names:
-                dcdb_time_filter = st.date_input("Select Date Range for DCDB-01 Primary Disconnect", [])
-
+            # Loop through the ordered alarm names and create pivot tables
             for alarm_name in ordered_alarm_names:
-                data = create_pivot_table(alarm_df, alarm_name)
+                pivot, total_alarm_count = create_pivot_table(alarm_df, alarm_name)
+                alarm_data[alarm_name] = {
+                    "pivot": pivot,
+                    "total": total_alarm_count
+                }
 
-                # Apply filters
-                if selected_cluster != "All":
-                    data[0] = data[0][data[0]['Cluster'] == selected_cluster]
-                if selected_zone != "All":
-                    data[0] = data[0][data[0]['Zone'] == selected_zone]
+                # Display total count of alarms
+                st.markdown(f"**Total {alarm_name} Alarms:** {total_alarm_count}")
 
-                # Apply time filtering for DCDB-01 Primary Disconnect
-                if alarm_name == 'DCDB-01 Primary Disconnect' and dcdb_time_filter:
-                    # Filter the DataFrame based on the selected date range
-                    filtered_data = alarm_df[(
-                        alarm_df['Alarm Name'] == alarm_name) & (
-                        pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(dcdb_time_filter))
-                    ]
-                    alarm_data[alarm_name] = create_pivot_table(filtered_data, alarm_name)
+                # Create filters for the pivot table
+                st.subheader(f"{alarm_name} Filter Options")
+
+                # Date filter
+                start_date, end_date = st.date_input("Select Date Range", [pd.to_datetime(current_time.date()), pd.to_datetime(current_time.date())])
+
+                # Zone filter
+                unique_zones = alarm_df['Zone'].unique()
+                selected_zones = st.multiselect("Select Zones", options=unique_zones, default=unique_zones)
+
+                # Cluster filter
+                unique_clusters = alarm_df['Cluster'].unique()
+                selected_clusters = st.multiselect("Select Clusters", options=unique_clusters, default=unique_clusters)
+
+                # Apply filters to the pivot table
+                filtered_alarm_df = alarm_df[
+                    (alarm_df['Alarm Name'] == alarm_name) &
+                    (alarm_df['Zone'].isin(selected_zones)) &
+                    (alarm_df['Cluster'].isin(selected_clusters)) &
+                    (alarm_df['Alarm Time'].dt.date >= start_date) &
+                    (alarm_df['Alarm Time'].dt.date <= end_date)
+                ]
+
+                if not filtered_alarm_df.empty:
+                    filtered_pivot, _ = create_pivot_table(filtered_alarm_df, alarm_name)
+                    st.dataframe(filtered_pivot)
                 else:
-                    alarm_data[alarm_name] = data
+                    st.warning("No alarms found for the selected filters.")
 
-            # Display each pivot table for the current alarms
-            for alarm_name, (pivot, total_count) in alarm_data.items():
-                st.markdown(f"### <b>{alarm_name}</b>", unsafe_allow_html=True)
-                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-                st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
-                st.dataframe(pivot)
+            # Prepare download for Current Alarms Report
+            current_alarm_report_data = {name: data['pivot'] for name, data in alarm_data.items()}
+            current_alarm_excel_data = to_excel(current_alarm_report_data)
 
-            # Prepare download for Current Alarms Report only if there is data
-            if alarm_data:
-                current_alarm_excel_data = to_excel({alarm_name: data[0] for alarm_name, data in alarm_data.items()})
-                st.download_button(
-                    label="Download Current Alarms Report",
-                    data=current_alarm_excel_data,
-                    file_name=f"Current Alarms Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            else:
-                st.warning("No current alarm data available for export.")
+            st.download_button(
+                label="Download Current Alarms Report",
+                data=current_alarm_excel_data,
+                file_name=f"Current_Alarms_Report_{current_time.strftime('%Y-%m-%d %H-%M-%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
