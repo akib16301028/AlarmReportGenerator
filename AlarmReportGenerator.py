@@ -1,3 +1,4 @@
+You said:
 import streamlit as st
 import pandas as pd
 import re
@@ -162,7 +163,7 @@ def create_site_wise_log(df, selected_alarm):
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-# Updated Function to style DataFrame: hide zeros, apply background color to specific columns
+# Function to style DataFrame: hide zeros, apply background color to specific columns
 def style_dataframe(df, duration_cols, is_dark_mode):
     # Replace 0 with empty strings in duration columns
     df_style = df.copy()
@@ -170,37 +171,29 @@ def style_dataframe(df, duration_cols, is_dark_mode):
 
     # Define background colors based on theme
     if is_dark_mode:
-        duration_bg = '#2E2E2E'  # Dark gray suitable for dark mode
-        other_bg = '#1E90FF'      # Dodger blue suitable for dark mode
+        duration_bg = '#2E2E2E'  # Very light gray suitable for dark mode
+        other_bg = '#1E90FF'      # Very light blue suitable for dark mode
         font_color = 'white'
     else:
         duration_bg = '#f0f0f0'  # Very light gray
-        other_bg = '#ADD8E6'      # Light blue
+        other_bg = '#ADD8E6'      # Very light blue
         font_color = 'black'
 
     # Create Styler object
     styler = df_style.style
 
-    # Define a function to apply duration column styles conditionally
-    def duration_style(row):
-        if row['Cluster'] == 'Total':
-            return [''] * len(duration_cols)
-        else:
-            return [f'background-color: {duration_bg}; color: {font_color}'] * len(duration_cols)
-
-    # Define a function to apply other column styles conditionally
-    def other_style(row):
-        if row['Cluster'] == 'Total':
-            return [''] * (len(row) - 2)  # Assuming 'Cluster' and 'Zone' are the first two columns
-        else:
-            return [f'background-color: {other_bg}; color: {font_color}'] * (len(row) - 2)
-
     # Apply background color to duration columns
-    styler = styler.apply(lambda row: duration_style(row), subset=duration_cols, axis=1)
+    styler = styler.applymap(
+        lambda x: f'background-color: {duration_bg}; color: {font_color}' if x != "" else '',
+        subset=duration_cols
+    )
 
-    # Apply background color to other columns (excluding 'Cluster' and 'Zone')
+    # Apply background color to other columns (excluding Cluster and Zone)
     non_duration_cols = [col for col in df_style.columns if col not in ['Cluster', 'Zone'] + duration_cols]
-    styler = styler.apply(lambda row: other_style(row), subset=non_duration_cols, axis=1)
+    styler = styler.applymap(
+        lambda x: f'background-color: {other_bg}; color: {font_color}' if pd.notna(x) and x != "" else '',
+        subset=non_duration_cols
+    )
 
     # Hide borders for a cleaner look
     styler.set_table_styles(
@@ -218,7 +211,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
 
 # Function to determine if the current theme is dark
 def is_dark_mode():
-    # Streamlit provides theme options that can be accessed via `st.get_option`
+    # Streamlit provides theme options that can be accessed via st.get_option
     # As of Streamlit 1.10, you can access the theme via st.runtime
     # However, this may vary based on the Streamlit version
     # Here, we'll use st.session_state as a workaround
@@ -275,6 +268,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             index=0
         )
 
+
+
         # === Site-Wise Log Filters ===
         st.sidebar.subheader("Site-Wise Log Filters")
         view_site_wise = st.sidebar.checkbox("View Site-Wise Log")
@@ -306,19 +301,12 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
         # Display the Offline Report
         st.markdown("### Offline Report")
-        if offline_time is not None:
-            st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-        else:
-            st.markdown("<small><i>Timestamp not available</i></small>", unsafe_allow_html=True)
+        st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
         st.dataframe(filtered_pivot_offline)
 
         # Calculate time offline smartly using the offline time
-        if offline_time is not None:
-            time_offline_df = calculate_time_offline(offline_df, offline_time)
-        else:
-            current_time_placeholder = pd.Timestamp.now()
-            time_offline_df = calculate_time_offline(offline_df, current_time_placeholder)
+        time_offline_df = calculate_time_offline(offline_df, offline_time)
 
         # Create a summary table based on offline duration
         summary_dict = {}
@@ -376,16 +364,13 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             st.download_button(
                 label="Download Offline Report",
                 data=offline_excel_data,
-                file_name=f"Offline_Report_{offline_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx" if offline_time else "Offline_Report.xlsx",
+                file_name=f"Offline_Report_{offline_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
             # Add the current time to the alarm header
             st.markdown(f"### Current Alarms Report")
-            if current_time is not None:
-                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-            else:
-                st.markdown("<small><i>Timestamp not available</i></small>", unsafe_allow_html=True)
+            st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
 
             # Define the priority order for the alarm names
             priority_order = [
@@ -462,10 +447,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Display each pivot table for the current alarms with styling
             for alarm_name, (pivot, total_count) in alarm_data.items():
                 st.markdown(f"### **{alarm_name}**")
-                if current_time is not None:
-                    st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-                else:
-                    st.markdown("<small><i>Timestamp not available</i></small>", unsafe_allow_html=True)
+                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
                 st.markdown(f"**Alarm Count:** {total_count}")
 
                 # Identify duration columns
@@ -485,7 +467,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 st.download_button(
                     label="Download Current Alarms Report",
                     data=current_alarm_excel_data,
-                    file_name=f"Current_Alarms_Report_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx" if current_time else "Current_Alarms_Report.xlsx",
+                    file_name=f"Current_Alarms_Report_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             else:
