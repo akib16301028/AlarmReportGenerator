@@ -162,22 +162,24 @@ def create_site_wise_log(df, selected_alarm):
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-# Function to style DataFrame: hide zeros in duration columns, apply background color to specific columns, style total row
+# Function to style DataFrame: hide zeros, apply background color to specific columns
 def style_dataframe(df, duration_cols, is_dark_mode):
+    # Replace 0 with empty strings in duration columns
+    df_style = df.copy()
+    df_style[duration_cols] = df_style[duration_cols].replace(0, "")
+
     # Define background colors based on theme
     if is_dark_mode:
-        duration_bg = '#ffcccc'  # Light red suitable for dark mode
-        other_bg = '#ADD8E6'      # Light blue
-        header_footer_bg = '#1f2c56'  # Darker blue for header and footer
+        duration_bg = '#2E2E2E'  # Very light gray suitable for dark mode
+        other_bg = '#1E90FF'      # Very light blue suitable for dark mode
         font_color = 'white'
     else:
-        duration_bg = '#ffcccc'  # Light red
-        other_bg = '#ADD8E6'      # Light blue
-        header_footer_bg = '#f0f0f0'  # Light gray for header and footer
+        duration_bg = '#f0f0f0'  # Very light gray
+        other_bg = '#ADD8E6'      # Very light blue
         font_color = 'black'
 
     # Create Styler object
-    styler = df.style
+    styler = df_style.style
 
     # Apply background color to duration columns
     styler = styler.applymap(
@@ -186,36 +188,42 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     )
 
     # Apply background color to other columns (excluding Cluster and Zone)
-    non_duration_cols = [col for col in df.columns if col not in ['Cluster', 'Zone'] + duration_cols]
+    non_duration_cols = [col for col in df_style.columns if col not in ['Cluster', 'Zone'] + duration_cols]
     styler = styler.applymap(
         lambda x: f'background-color: {other_bg}; color: {font_color}' if pd.notna(x) and x != "" else '',
         subset=non_duration_cols
     )
 
-    # Style header row
-    styler = styler.set_table_styles(
+    # Hide borders for a cleaner look
+    styler.set_table_styles(
         [{
             'selector': 'th',
-            'props': [('background-color', header_footer_bg),
-                      ('color', font_color),
-                      ('font-weight', 'bold')]
+            'props': [('border', '1px solid black')]
+        },
+        {
+            'selector': 'td',
+            'props': [('border', '1px solid black')]
         }]
-    )
-
-    # Style total row (last row)
-    styler = styler.set_td_classes(pd.Series(['total_row']*len(df)))
-    styler = styler.apply(
-        lambda _: [f'background-color: {header_footer_bg}; color: {font_color}; font-weight: bold' for _ in df.columns],
-        axis=1
     )
 
     return styler
 
 # Function to determine if the current theme is dark
 def is_dark_mode():
-    # Streamlit allows accessing theme options via get_option
-    theme_base = st.get_option("theme.base")
-    return theme_base == "dark"
+    # Streamlit provides theme options that can be accessed via `st.get_option`
+    # As of Streamlit 1.10, you can access the theme via st.runtime
+    # However, this may vary based on the Streamlit version
+    # Here, we'll use st.session_state as a workaround
+
+    # Check if 'theme' is in session_state
+    if 'theme' in st.session_state:
+        theme = st.session_state['theme']
+    else:
+        # Default to light mode if not set
+        theme = 'light'
+
+    # Assume 'dark' indicates dark mode
+    return theme.lower() == 'dark'
 
 # Streamlit app
 st.title("StatusMatrix")
@@ -270,6 +278,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             )
 
         # Determine if dark mode is active
+        # Note: Streamlit does not provide a direct method to detect theme,
+        # so this function is a placeholder and may need adjustment based on Streamlit version
         dark_mode = is_dark_mode()
 
         # Process the Offline Report
