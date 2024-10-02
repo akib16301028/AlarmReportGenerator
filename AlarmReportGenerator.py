@@ -162,37 +162,82 @@ def create_site_wise_log(df, selected_alarm):
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-# Function to style DataFrame: hide zeros, apply background color to specific columns
-def style_dataframe(df, duration_cols, is_dark_mode):
-    # Replace 0 with empty strings in duration columns
-    df_style = df.copy()
-    df_style[duration_cols] = df_style[duration_cols].replace(0, "")
+# Function to style DataFrame based on table type
+def style_dataframe(df, duration_cols=None, table_type='current_alarm', is_dark_mode=False):
+    # Create a Styler object
+    styler = df.style
 
-    # Define background colors based on theme
+    # Define colors based on theme
     if is_dark_mode:
-        duration_bg = '#2E2E2E'  # Very light gray suitable for dark mode
-        other_bg = '#1E90FF'      # Very light blue suitable for dark mode
+        duration_bg = '#2E2E2E'  # Dark gray for duration columns in dark mode
+        other_bg = '#1E90FF'      # Light blue for other columns in dark mode
+        cell_bg = '#3A3A3A'       # Very light unique color for non-colored cells in dark mode
+        table_cell_bg = '#4A4A4A' # Light unique color for all cells in dark mode
+        header_bg = '#FFD700'     # Gold color for header and total columns in dark mode
         font_color = 'white'
     else:
-        duration_bg = '#f0f0f0'  # Very light gray
-        other_bg = '#ADD8E6'      # Very light blue
+        duration_bg = '#f0f0f0'  # Very light gray for duration columns in light mode
+        other_bg = '#ADD8E6'      # Very light blue for other columns in light mode
+        cell_bg = '#fdfd96'       # Very light unique color for non-colored cells in light mode
+        table_cell_bg = '#e0f7fa' # Very light unique color for all cells in light mode
+        header_bg = '#FFB6C1'     # Light pink for header and total columns in light mode
         font_color = 'black'
 
-    # Create Styler object
-    styler = df_style.style
+    # Apply styles based on table type
+    if table_type == 'current_alarm':
+        # Replace 0 with empty strings in duration columns
+        if duration_cols:
+            df_style = df.copy()
+            df_style[duration_cols] = df_style[duration_cols].replace(0, "")
+            styler = df_style.style
 
-    # Apply background color to duration columns
-    styler = styler.applymap(
-        lambda x: f'background-color: {duration_bg}; color: {font_color}' if x != "" else '',
-        subset=duration_cols
-    )
+            # Apply background color to duration columns
+            styler = styler.applymap(
+                lambda x: f'background-color: {duration_bg}; color: {font_color}' if x != "" else '',
+                subset=duration_cols
+            )
 
-    # Apply background color to other columns (excluding Cluster and Zone)
-    non_duration_cols = [col for col in df_style.columns if col not in ['Cluster', 'Zone'] + duration_cols]
-    styler = styler.applymap(
-        lambda x: f'background-color: {other_bg}; color: {font_color}' if pd.notna(x) and x != "" else '',
-        subset=non_duration_cols
-    )
+            # Apply background color to other columns (excluding Cluster and Zone)
+            non_duration_cols = [col for col in df_style.columns if col not in ['Cluster', 'Zone'] + duration_cols]
+            styler = styler.applymap(
+                lambda x: f'background-color: {other_bg}; color: {font_color}' if pd.notna(x) and x != "" else '',
+                subset=non_duration_cols
+            )
+
+            # Fill remaining cells with a very light unique color
+            styler = styler.apply(
+                lambda x: [f'background-color: {cell_bg}' if v == "" else '' for v in x],
+                axis=1
+            )
+        else:
+            # If no duration columns specified, fill all cells
+            styler = styler.applymap(
+                lambda x: f'background-color: {table_cell_bg}; color: {font_color}' if pd.notna(x) else '',
+                subset=df.columns
+            )
+    elif table_type in ['offline', 'summary_offline']:
+        # Fill all cells with a very light unique color
+        styler = styler.applymap(
+            lambda x: f'background-color: {table_cell_bg}; color: {font_color}' if pd.notna(x) else '',
+            subset=df.columns
+        )
+    else:
+        # Default styling if table_type is unrecognized
+        styler = styler.applymap(
+            lambda x: f'background-color: {cell_bg}; color: {font_color}' if pd.notna(x) else '',
+            subset=df.columns
+        )
+
+    # Highlight first and last columns with a different color
+    if 'Cluster' in df.columns and 'Total' in df.columns:
+        styler = styler.applymap(
+            lambda x: f'background-color: {header_bg}; color: {font_color}',
+            subset=['Cluster']
+        )
+        styler = styler.applymap(
+            lambda x: f'background-color: {header_bg}; color: {font_color}',
+            subset=['Total']
+        )
 
     # Hide borders for a cleaner look
     styler.set_table_styles(
@@ -298,11 +343,14 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         else:
             filtered_pivot_offline = pivot_offline.copy()
 
-        # Display the Offline Report
+        # Display the Offline Report with styling
         st.markdown("### Offline Report")
         st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
-        st.dataframe(filtered_pivot_offline)
+
+        # Apply styling for Offline Report
+        styled_offline_pivot = style_dataframe(filtered_pivot_offline, table_type='offline', is_dark_mode=dark_mode)
+        st.dataframe(styled_offline_pivot)
 
         # Calculate time offline smartly using the offline time
         time_offline_df = calculate_time_offline(offline_df, offline_time)
@@ -330,10 +378,11 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         else:
             filtered_summary_df = summary_df_full.copy()
 
-        # Display the Summary of Offline Sites
+        # Display the Summary of Offline Sites with styling
         st.markdown("### Summary of Offline Sites")
         st.markdown(f"**Total Offline Sites:** {filtered_summary_df['Site Name'].nunique()}")
-        st.dataframe(filtered_summary_df)
+        styled_summary_df = style_dataframe(filtered_summary_df, table_type='summary_offline', is_dark_mode=dark_mode)
+        st.dataframe(styled_summary_df)
 
         # === Site-Wise Log Display ===
         if view_site_wise:
@@ -452,8 +501,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 # Identify duration columns
                 duration_cols = ['0+', '2+', '4+', '8+']
 
-                # Apply styling
-                styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
+                # Apply styling for current alarm tables
+                styled_pivot = style_dataframe(pivot, duration_cols=duration_cols, table_type='current_alarm', is_dark_mode=dark_mode)
 
                 # Display styled DataFrame
                 st.dataframe(styled_pivot)
