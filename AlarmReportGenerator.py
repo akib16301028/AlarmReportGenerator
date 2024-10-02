@@ -291,7 +291,7 @@ def is_dark_mode():
     return theme.lower() == 'dark'
 
 # Streamlit app
-st.title("StatusMatrix")
+st.title("StatusMatrix@STL")
 
 # File Uploads
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
