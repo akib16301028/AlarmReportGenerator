@@ -158,7 +158,7 @@ def create_site_wise_log(df, selected_alarm):
         filtered_df = df.copy()
     else:
         filtered_df = df[df['Alarm Name'] == selected_alarm].copy()
-    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time']]
+    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time','Duration']]
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
