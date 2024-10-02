@@ -93,35 +93,18 @@ def create_offline_pivot(df):
     
     df['Less than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'Less than 24 hours' in x else 0)
     df['More than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 24 hours' in x and '72' not in x else 0)
-    df['More than 48 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 48 hours' in x and '72' not in x else 0)
     df['More than 72 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 72 hours' in x else 0)
     
     pivot = df.groupby(['Cluster', 'Zone']).agg({
         'Less than 24 hours': 'sum',
         'More than 24 hours': 'sum',
-        'More than 48 hours': 'sum'
-        'More than 72 hours': 'sum',
-        'Site Alias': 'nunique'
-    }).reset_index()# Function to create pivot table for offline report
-def create_offline_pivot(df):
-    df = df.drop_duplicates()
-    
-    df['Less than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'Less than 24 hours' in x else 0)
-    df['More than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 24 hours' in x and '72' not in x else 0)
-    df['More than 48 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 48 hours' in x and '72' not in x else 0)
-    df['More than 72 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 72 hours' in x else 0)
-    
-    pivot = df.groupby(['Cluster', 'Zone']).agg({
-        'Less than 24 hours': 'sum',
-        'More than 24 hours': 'sum',
-        'More than 48 hours': 'sum'
         'More than 72 hours': 'sum',
         'Site Alias': 'nunique'
     }).reset_index()
 
     pivot = pivot.rename(columns={'Site Alias': 'Total'})
     
-    total_row = pivot[['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
+    total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
     # Replace numeric columns in total_row with empty strings
@@ -202,43 +185,20 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Replace 0 with empty strings in duration columns
     df_style[duration_cols] = df_style[duration_cols].replace(0, "")
     
+    # Define background colors
+    cell_bg_color = '#f0f0f0'
+    font_color = 'black' if not is_dark_mode else 'black'
+    
     # Create a Styler object
     styler = df_style.style
     
-    # Apply background color to cells with 0 or empty values, only in light mode
+    # Apply background color to cells with 0 or empty values
     def highlight_zero(val):
-        if not is_dark_mode and (val == 0 or val == ""):
-            return f'background-color: #f0f0f0; color: black'
+        if val == 0 or val == "":
+            return f'background-color: {cell_bg_color}; color: {font_color}'
         return ''
     
     styler = styler.applymap(highlight_zero)
-    
-    # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
-    if total_row_mask.any():
-        styler = styler.apply(
-            lambda x: ['background-color: #f0f0f0; color: black' if total_row_mask.loc[x.name] else '' for _ in x],
-            axis=1
-        )
-        # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
-        styler = styler.applymap(
-            lambda x: f'background-color: #f0f0f0; color: black',
-            subset=['Cluster', 'Zone']
-        )
-    
-    # Optional: Remove borders for a cleaner look
-    styler.set_table_styles(
-        [{
-            'selector': 'th',
-            'props': [('border', '1px solid black')]
-        },
-        {
-            'selector': 'td',
-            'props': [('border', '1px solid black')]
-        }]
-    )
-    
-    return styler
-
     
     # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
     if total_row_mask.any():
