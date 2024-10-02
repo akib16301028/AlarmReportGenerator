@@ -148,7 +148,7 @@ def create_offline_pivot(df):
     return pivot, total_offline_count
 
     # Setting empty cells for the '48+' column if the value is zero
-    pivot['48+'] = pivot['48+'].replace("", "")  # This line ensures that if the value is 0, it stays empty
+    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace("", "")  # This line ensures that if the value is 0, it stays empty
 
     return pivot, total_offline_count
 
