@@ -152,42 +152,15 @@ def to_excel(dfs_dict):
             df.to_excel(writer, sheet_name=valid_sheet_name, index=False)
     return output.getvalue()
 
-# Function to create site-wise log table with Duration
+# Function to create site-wise log table
 def create_site_wise_log(df, selected_alarm):
     if selected_alarm == "All":
         filtered_df = df.copy()
     else:
         filtered_df = df[df['Alarm Name'] == selected_alarm].copy()
-    
-    # Include the 'Duration Slot (Hours)' column
-    # Rename it to 'Duration (Hours)' for clarity
-    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time','Duration', 'Duration Slot (Hours)']]
-    filtered_df = filtered_df.rename(columns={'Duration Slot (Hours)': 'Duration (Hours)'})
-    
-    # Convert duration to a more readable format
-    filtered_df['Duration'] = filtered_df['Duration (Hours)'].apply(format_duration)
-    
-    # Select the columns to display, including the new 'Duration' column
-    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time','Duration', 'Duration(Hours)']]
-    
+    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time']]
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
-
-# Function to format duration from hours to a readable string
-def format_duration(hours):
-    try:
-        hours = float(hours)
-        if hours < 1:
-            minutes = int(hours * 60)
-            return f"{minutes} minutes"
-        elif hours < 24:
-            return f"{int(hours)} hours"
-        else:
-            days = int(hours // 24)
-            remaining_hours = int(hours % 24)
-            return f"{days} days {remaining_hours} hours" if remaining_hours else f"{days} days"
-    except:
-        return "Unknown"
 
 # Function to style DataFrame: hide zeros, apply background color to specific columns
 def style_dataframe(df, duration_cols, is_dark_mode):
@@ -272,6 +245,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Initialize Sidebar Filters
         st.sidebar.header("Filters")
 
+        
         # Get unique clusters for filtering
         offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
         offline_clusters.insert(0, "All")  # Add 'All' option
@@ -282,9 +256,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         )
 
         # === Current Alarms Filters ===
-        st.sidebar.subheader("Current Alarms Filters")
-        st.sidebar.text("[select alarm first]")  # Display this on the next line
-
+        st.sidebar.subheader("Current Alarms Filters [select alarm first]")
         # Get unique alarm names
         alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
         alarm_names.insert(0, "All")  # Add 'All' option
@@ -293,6 +265,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             options=alarm_names,
             index=0
         )
+
+
 
         # === Site-Wise Log Filters ===
         st.sidebar.subheader("Site-Wise Log Filters")
