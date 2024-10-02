@@ -93,12 +93,13 @@ def create_offline_pivot(df):
     
     df['Less than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'Less than 24 hours' in x else 0)
     df['More than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 24 hours' in x and '72' not in x else 0)
-df['More than 48 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 48 hours' in x and '72' not in x else 0)
+    df['More than 48 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 48 hours' in x and '72' not in x else 0)
     df['More than 72 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 72 hours' in x else 0)
     
     pivot = df.groupby(['Cluster', 'Zone']).agg({
         'Less than 24 hours': 'sum',
         'More than 24 hours': 'sum',
+        'More than 48 hours': 'sum'
         'More than 72 hours': 'sum',
         'Site Alias': 'nunique'
     }).reset_index()# Function to create pivot table for offline report
