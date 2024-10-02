@@ -205,20 +205,17 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
 
-            # Add a time filter for the "DCDB-01 Primary Disconnect" alarm
-            dcdb_time_filter = None
-            if 'DCDB-01 Primary Disconnect' in ordered_alarm_names:
-                dcdb_time_filter = st.date_input("Select Date Range for DCDB-01 Primary Disconnect", [])
+            # Create a date filter for all alarms
+            date_filter = st.date_input("Select Date Range for Alarms", [])
 
             for alarm_name in ordered_alarm_names:
                 data = create_pivot_table(alarm_df, alarm_name)
 
-                # Apply time filtering for DCDB-01 Primary Disconnect
-                if alarm_name == 'DCDB-01 Primary Disconnect' and dcdb_time_filter:
-                    # Filter the DataFrame based on the selected date range
+                # Apply time filtering for alarms
+                if date_filter:
                     filtered_data = alarm_df[(
                         alarm_df['Alarm Name'] == alarm_name) & (
-                        pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(dcdb_time_filter))
+                        pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p').dt.date.isin(date_filter))
                     ]
                     alarm_data[alarm_name] = create_pivot_table(filtered_data, alarm_name)
                 else:
