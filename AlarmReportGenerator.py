@@ -167,17 +167,22 @@ def style_dataframe(df, duration_cols):
     # Replace 0 with empty strings in duration columns
     df_style = df.copy()
     df_style[duration_cols] = df_style[duration_cols].replace(0, "")
-
+    
     # Create Styler object
     styler = df_style.style
-
-    # Apply background color to duration columns (darker shade for dark mode)
+    
+    # Apply very very very light background color to duration columns
+    # Adjust the color code as needed; #f9f9f9 is very light
     styler = styler.applymap(
-        lambda x: 'background-color: #444444; color: white', 
+        lambda x: 'background-color: #f9f9f9', 
         subset=duration_cols
     )
-
-    return styler
+    
+    # Optionally, adjust font color for better visibility in dark mode
+    styler = styler.set_properties(**{'color': 'black'}, subset=duration_cols)
+    
+    # Return the rendered HTML
+    return styler.hide_index().render()
 
 # Streamlit app
 st.title("StatusMatrix")
@@ -249,7 +254,10 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.markdown("### Offline Report")
         st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
-        st.dataframe(filtered_pivot_offline)
+        st.markdown(
+            style_dataframe(filtered_pivot_offline, ['0+', '2+', '4+', '8+']),
+            unsafe_allow_html=True
+        )
 
         # Calculate time offline smartly using the offline time
         time_offline_df = calculate_time_offline(offline_df, offline_time)
@@ -285,11 +293,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # === Site-Wise Log Display ===
         if view_site_wise:
             st.markdown("### Site-Wise Log")
-            if site_wise_alarms != "All":
-                site_wise_log_df = create_site_wise_log(alarm_df, site_wise_alarms)
-                st.dataframe(site_wise_log_df)
-            else:
-                st.info("No specific alarm selected for Site-Wise Log.")
+            site_wise_log_df = create_site_wise_log(alarm_df, site_wise_alarms)
+            st.dataframe(site_wise_log_df)
 
         # Check for required columns in Alarm Report
         alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time', 'Duration Slot (Hours)']
@@ -403,7 +408,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 styled_pivot = style_dataframe(pivot, duration_cols)
 
                 # Display styled DataFrame
-                st.dataframe(styled_pivot)
+                st.markdown(styled_pivot, unsafe_allow_html=True)
 
             # Prepare download for Current Alarms Report only if there is data
             if alarm_data:
