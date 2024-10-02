@@ -70,8 +70,8 @@ def create_pivot_table(df, alarm_name):
     total_row = pivot[numeric_cols].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
-    # Replace numeric columns in total_row with empty strings to ensure empty cells
-    total_row[numeric_cols] = ""
+    # Replace numeric columns in total_row with empty strings
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
@@ -107,13 +107,13 @@ def create_offline_pivot(df):
     total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
-    # Replace numeric columns in total_row with empty strings to ensure empty cells
+    # Replace numeric columns in total_row with empty strings
     numeric_cols = ['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']
-    total_row[numeric_cols] = ""
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
-    total_offline_count = int(pivot['Total'].iloc[-1]) if pivot['Total'].iloc[-1] != "" else 0
+    total_offline_count = int(pivot['Total'].iloc[-1])
     
     last_cluster = None
     for i in range(len(pivot)):
@@ -170,13 +170,16 @@ def create_site_wise_log(df, selected_alarm):
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-# Function to style DataFrame: handle total row
+# Function to style DataFrame: fill cells with #f0f0f0 if value is 0 or empty and handle total row
 def style_dataframe(df, duration_cols, is_dark_mode):
     # Create a copy for styling
     df_style = df.copy()
     
     # Identify the total row based on 'Cluster' column
     total_row_mask = df_style['Cluster'] == 'Total'
+    
+    # Replace 0 with empty strings in duration columns
+    df_style[duration_cols] = df_style[duration_cols].replace(0, "")
     
     # Define background colors
     cell_bg_color = '#f0f0f0'
@@ -185,12 +188,24 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Create a Styler object
     styler = df_style.style
     
-    # Handle total row: set all cells to have a specific background color or style if needed
+    # Apply background color to cells with 0 or empty values
+    def highlight_zero(val):
+        if val == 0 or val == "":
+            return f'background-color: {cell_bg_color}; color: {font_color}'
+        return ''
+    
+    styler = styler.applymap(highlight_zero)
+    
+    # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
     if total_row_mask.any():
         styler = styler.apply(
-            lambda x: [f'background-color: {cell_bg_color}; font-weight: bold; color: {font_color}'] * len(x) 
-            if total_row_mask.loc[x.name] else [''] * len(x), 
+            lambda x: ['background-color: #f0f0f0; color: white' if total_row_mask.loc[x.name] else '' for _ in x],
             axis=1
+        )
+        # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
+        styler = styler.applymap(
+            lambda x: f'background-color: {cell_bg_color}; color: {font_color}',
+            subset=['Cluster', 'Zone']
         )
     
     # Optional: Remove borders for a cleaner look
@@ -209,8 +224,10 @@ def style_dataframe(df, duration_cols, is_dark_mode):
 
 # Function to determine if the current theme is dark
 def is_dark_mode():
-    # Streamlit does not provide a direct method to detect theme,
-    # so this function is a placeholder and may need adjustment based on Streamlit version
+    # Streamlit provides theme options that can be accessed via st.get_option
+    # As of Streamlit 1.10, you can access the theme via st.runtime
+    # However, this may vary based on the Streamlit version
+    # Here, we'll use st.session_state as a workaround
 
     # Check if 'theme' is in session_state
     if 'theme' in st.session_state:
@@ -323,9 +340,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Convert to DataFrame
         summary_df_full = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name", "Cluster", "Zone", "Last Online Time"])
 
-        # Format 'Last Online Time' to remove fractional seconds
-        summary_df_full['Last Online Time'] = summary_df_full['Last Online Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-
         # Apply Offline Cluster Filters to Summary
         if selected_offline_cluster != "All":
             filtered_summary_df = summary_df_full[summary_df_full['Cluster'] == selected_offline_cluster]
@@ -335,7 +349,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Display the Summary of Offline Sites
         st.markdown("### Summary of Offline Sites")
         st.markdown(f"**Total Offline Sites:** {filtered_summary_df['Site Name'].nunique()}")
-
+        
         # Apply styling to the summary table
         styled_summary_df = style_dataframe(filtered_summary_df, [], dark_mode)
         st.dataframe(styled_summary_df)
