@@ -522,7 +522,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 st.markdown(f"**Alarm Count:** {total_count}")
 
                 # Identify duration columns
-                duration_cols = ['0+ hrs', '2+ hrs', '4+ hrs', '8+ hrs']
+                duration_cols = ['0+', '2+', '4+', '8+']
 
                 # Apply styling
                 styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
