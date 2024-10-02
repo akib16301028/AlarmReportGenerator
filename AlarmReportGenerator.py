@@ -245,8 +245,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Initialize Sidebar Filters
         st.sidebar.header("Filters")
 
-        # === Offline Report Filters ===
-        st.sidebar.subheader("Offline Report Filters")
         # Get unique clusters for filtering
         offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
         offline_clusters.insert(0, "All")  # Add 'All' option
@@ -255,6 +253,10 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             options=offline_clusters,
             index=0
         )
+        
+        # === Offline Report Filters ===
+        st.sidebar.subheader("Offline Report Filters")
+        
 
         # === Current Alarms Filters ===
         st.sidebar.subheader("Current Alarms Filters")
