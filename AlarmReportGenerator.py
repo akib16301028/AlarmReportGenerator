@@ -115,8 +115,10 @@ def to_excel(dfs_dict):
     return output.getvalue()
 
 # Streamlit app
+st.set_page_config(page_title="StatusMatrix", layout="wide")
 st.title("StatusMatrix")
 
+# File Uploaders
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
 uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
@@ -124,51 +126,71 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
         # Read Excel files with header starting at row 3 (index 2)
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
-        offline_df = pd.read_excel(uploaded_offline_file, header=2)
+        offline_df = pd.read_excel(uploadged_offline_file, header=2)
 
         # Extract timestamps from file names
         current_time = extract_timestamp(uploaded_alarm_file.name)
         offline_time = extract_timestamp(uploaded_offline_file.name)
 
-        # ------------------ Offline Report Filters ------------------
-        st.header("Offline Report Filters")
-        filter_expander_offline = st.expander("🔍 Apply Filters", expanded=True)
+        # Define Alarm Priority Order
+        priority_order = [
+            'Mains Fail',
+            'Battery Low',
+            'DCDB-01 Primary Disconnect',
+            'PG Run',
+            'MDB Fault',
+            'Door Open',
+            'Battery Critical'
+            'Water Leakage'  # Added as per user's example
+        ]
 
-        with filter_expander_offline:
+        # ------------------ Offline Report Filters ------------------
+        st.header("Offline Report")
+
+        # Arrange filters in three columns
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
             # Date Filter: Assuming 'Last Online Time' exists in offline_df
             if 'Last Online Time' in offline_df.columns:
                 offline_df['Last Online Time'] = pd.to_datetime(offline_df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
                 min_date = offline_df['Last Online Time'].min().date()
                 max_date = offline_df['Last Online Time'].max().date()
-                selected_date = st.date_input("Select Date Range", [min_date, max_date], min_value=min_date, max_value=max_date)
-                if len(selected_date) == 2:
+                selected_date = st.select_slider(
+                    "Select Date Range",
+                    options=pd.date_range(min_date, max_date, freq='D'),
+                    value=(min_date, max_date),
+                    format="YYYY-MM-DD"
+                )
+                if isinstance(selected_date, tuple) and len(selected_date) == 2:
                     start_date, end_date = selected_date
-                    mask = (offline_df['Last Online Time'].dt.date >= start_date) & (offline_df['Last Online Time'].dt.date <= end_date)
+                    mask = (offline_df['Last Online Time'].dt.date >= start_date.date()) & (offline_df['Last Online Time'].dt.date <= end_date.date())
                     filtered_offline_df = offline_df[mask]
                 else:
                     filtered_offline_df = offline_df.copy()
             else:
                 filtered_offline_df = offline_df.copy()
 
+        with col2:
             # Zone Filter
             zones = filtered_offline_df['Zone'].dropna().unique().tolist()
             selected_zones = st.multiselect("Select Zones", options=sorted(zones), default=sorted(zones))
 
+        with col3:
             # Cluster Filter
             clusters = filtered_offline_df['Cluster'].dropna().unique().tolist()
             selected_clusters = st.multiselect("Select Clusters", options=sorted(clusters), default=sorted(clusters))
 
-            # Apply Zone and Cluster Filters
-            filtered_offline_df = filtered_offline_df[
-                (filtered_offline_df['Zone'].isin(selected_zones)) &
-                (filtered_offline_df['Cluster'].isin(selected_clusters))
-            ]
+        # Apply Zone and Cluster Filters
+        filtered_offline_df = filtered_offline_df[
+            (filtered_offline_df['Zone'].isin(selected_zones)) &
+            (filtered_offline_df['Cluster'].isin(selected_clusters))
+        ]
 
         # Recreate pivot table based on filters
         pivot_offline, total_offline_count = create_offline_pivot(filtered_offline_df)
 
         # Display Offline Report
-        st.subheader("Offline Report")
         st.markdown(f"*till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}*")
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
         st.dataframe(pivot_offline)
@@ -176,63 +198,69 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Calculate time offline smartly using the offline time
         time_offline_df = calculate_time_offline(filtered_offline_df, offline_time)
 
-        # ------------------ Summary of Offline Sites Filters ------------------
+        # ------------------ Summary of Offline Sites ------------------
         st.subheader("Summary of Offline Sites")
         st.dataframe(time_offline_df)
 
         # ------------------ Current Alarms Filters ------------------
-        st.header("Current Alarms Filters")
-        filter_expander_alarms = st.expander("🔍 Apply Filters", expanded=True)
+        st.header("Current Alarms Report")
 
-        with filter_expander_alarms:
-            # Check for required columns in Alarm Report
-            alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time']
-            if not all(col in alarm_df.columns for col in alarm_required_columns):
-                st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
-                st.stop()
+        # Arrange alarm filters in three columns
+        col_a1, col_a2, col_a3, col_a4 = st.columns(4)
 
-            # Extract Client and filter out nulls
-            alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
-            alarm_df = alarm_df[~alarm_df['Client'].isnull()]
-
+        with col_a1:
             # Date Filter: Assuming 'Alarm Time' exists in alarm_df
             if 'Alarm Time' in alarm_df.columns:
                 alarm_df['Alarm Time'] = pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p')
                 min_alarm_date = alarm_df['Alarm Time'].min().date()
                 max_alarm_date = alarm_df['Alarm Time'].max().date()
-                selected_alarm_date = st.date_input("Select Alarm Date Range", [min_alarm_date, max_alarm_date], min_value=min_alarm_date, max_value=max_alarm_date, key='alarm_date')
-                if len(selected_alarm_date) == 2:
+                selected_alarm_date = st.select_slider(
+                    "Select Alarm Date Range",
+                    options=pd.date_range(min_alarm_date, max_alarm_date, freq='D'),
+                    value=(min_alarm_date, max_alarm_date),
+                    format="YYYY-MM-DD"
+                )
+                if isinstance(selected_alarm_date, tuple) and len(selected_alarm_date) == 2:
                     start_alarm_date, end_alarm_date = selected_alarm_date
-                    mask_alarm_date = (alarm_df['Alarm Time'].dt.date >= start_alarm_date) & (alarm_df['Alarm Time'].dt.date <= end_alarm_date)
+                    mask_alarm_date = (alarm_df['Alarm Time'].dt.date >= start_alarm_date.date()) & (alarm_df['Alarm Time'].dt.date <= end_alarm_date.date())
                     filtered_alarm_df = alarm_df[mask_alarm_date]
                 else:
                     filtered_alarm_df = alarm_df.copy()
             else:
                 filtered_alarm_df = alarm_df.copy()
 
+        with col_a2:
             # Zone Filter
             alarm_zones = filtered_alarm_df['Zone'].dropna().unique().tolist()
-            selected_alarm_zones = st.multiselect("Select Alarm Zones", options=sorted(alarm_zones), default=sorted(alarm_zones), key='alarm_zones')
+            selected_alarm_zones = st.multiselect("Select Alarm Zones", options=sorted(alarm_zones), default=sorted(alarm_zones))
 
+        with col_a3:
             # Cluster Filter
             alarm_clusters = filtered_alarm_df['Cluster'].dropna().unique().tolist()
-            selected_alarm_clusters = st.multiselect("Select Alarm Clusters", options=sorted(alarm_clusters), default=sorted(alarm_clusters), key='alarm_clusters')
+            selected_alarm_clusters = st.multiselect("Select Alarm Clusters", options=sorted(alarm_clusters), default=sorted(alarm_clusters))
 
-            # Apply Zone and Cluster Filters
-            filtered_alarm_df = filtered_alarm_df[
-                (filtered_alarm_df['Zone'].isin(selected_alarm_zones)) &
-                (filtered_alarm_df['Cluster'].isin(selected_alarm_clusters))
-            ]
-
+        with col_a4:
             # Dropdown to select specific alarms
             alarm_names = filtered_alarm_df['Alarm Name'].unique().tolist()
-            selected_alarm = st.multiselect("Select Alarms to Display", options=sorted(alarm_names), default=sorted(alarm_names), key='selected_alarms')
+            selected_alarm = st.multiselect("Select Alarms to Display", options=sorted(alarm_names), default=sorted(alarm_names))
 
-            # Filter based on selected alarms
-            filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Alarm Name'].isin(selected_alarm)]
+        # Apply Zone and Cluster Filters
+        filtered_alarm_df = filtered_alarm_df[
+            (filtered_alarm_df['Zone'].isin(selected_alarm_zones)) &
+            (filtered_alarm_df['Cluster'].isin(selected_alarm_clusters)) &
+            (filtered_alarm_df['Alarm Name'].isin(selected_alarm))
+        ]
+
+        # Extract Client and filter out nulls
+        filtered_alarm_df['Client'] = filtered_alarm_df['Site Alias'].apply(extract_client)
+        filtered_alarm_df = filtered_alarm_df[~filtered_alarm_df['Client'].isnull()]
 
         # Recreate pivot tables based on filters
-        ordered_alarm_names = selected_alarm  # Only the selected alarms
+        # Order alarms based on priority_order
+        ordered_alarm_names = [alarm for alarm in priority_order if alarm in filtered_alarm_df['Alarm Name'].unique()]
+        # Append any alarms not in priority_order at the end
+        other_alarms = sorted(set(filtered_alarm_df['Alarm Name'].unique()) - set(priority_order))
+        ordered_alarm_names += other_alarms
 
         # Create a dictionary to store all pivot tables for current alarms
         alarm_data = {}
@@ -241,13 +269,11 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             data = create_pivot_table(filtered_alarm_df, alarm_name)
             alarm_data[alarm_name] = data
 
-        # Display each pivot table for the current alarms
-        st.subheader("Current Alarms Report")
-        st.markdown(f"*till {current_time.strftime('%Y-%m-%d %H:%M:%S')}*")
-
-        for alarm_name, (pivot, total_count) in alarm_data.items():
+        # Display each pivot table for the current alarms in priority order
+        for alarm_name in ordered_alarm_names:
+            pivot, total_count = alarm_data[alarm_name]
             st.markdown(f"### {alarm_name}")
-            st.markdown(f"till {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
             st.markdown(f"**Alarm Count:** {total_count}")
             st.dataframe(pivot)
 
