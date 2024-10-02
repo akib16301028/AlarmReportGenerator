@@ -170,11 +170,11 @@ def style_dataframe(df, duration_cols, is_dark_mode):
 
     # Define background colors based on theme
     if is_dark_mode:
-        duration_bg = '#FFCCCB'  # Very light gray suitable for dark mode
-        other_bg = '#1E90FF'      # Very light blue suitable for dark mode
+        duration_bg = '#ADD8E6'  # Very light gray suitable for dark mode
+        other_bg = '#ADD8E6'      # Very light blue suitable for dark mode
         font_color = 'white'
     else:
-        duration_bg = '#FFCCCB'  # Very light gray
+        duration_bg = '#ADD8E6'  # Very light gray
         other_bg = '#ADD8E6'      # Very light blue
         font_color = 'black'
 
