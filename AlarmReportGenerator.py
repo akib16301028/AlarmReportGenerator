@@ -155,6 +155,19 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Display the summary table
         summary_df = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name", "Cluster", "Zone", "Last Online Time"])
         st.markdown("### Summary of Offline Sites")
+
+        # Filter options for Summary of Offline Sites
+        cluster_options = summary_df['Cluster'].unique()
+        selected_cluster = st.selectbox("Select Cluster", options=["All"] + list(cluster_options), key="summary_cluster")
+
+        zone_options = summary_df['Zone'].unique()
+        selected_zone = st.selectbox("Select Zone", options=["All"] + list(zone_options), key="summary_zone")
+
+        if selected_cluster != "All":
+            summary_df = summary_df[summary_df['Cluster'] == selected_cluster]
+        if selected_zone != "All":
+            summary_df = summary_df[summary_df['Zone'] == selected_zone]
+
         st.dataframe(summary_df)
 
         # Check for required columns in Alarm Report
@@ -205,6 +218,13 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Create a dictionary to store all pivot tables for current alarms
             alarm_data = {}
 
+            # Filter options for Current Alarms Report
+            cluster_options = alarm_df['Cluster'].unique()
+            selected_cluster = st.selectbox("Select Cluster for Alarms", options=["All"] + list(cluster_options), key="alarms_cluster")
+
+            zone_options = alarm_df['Zone'].unique()
+            selected_zone = st.selectbox("Select Zone for Alarms", options=["All"] + list(zone_options), key="alarms_zone")
+
             # Add a time filter for the "DCDB-01 Primary Disconnect" alarm
             dcdb_time_filter = None
             if 'DCDB-01 Primary Disconnect' in ordered_alarm_names:
@@ -212,6 +232,12 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
             for alarm_name in ordered_alarm_names:
                 data = create_pivot_table(alarm_df, alarm_name)
+
+                # Apply filters
+                if selected_cluster != "All":
+                    data[0] = data[0][data[0]['Cluster'] == selected_cluster]
+                if selected_zone != "All":
+                    data[0] = data[0][data[0]['Zone'] == selected_zone]
 
                 # Apply time filtering for DCDB-01 Primary Disconnect
                 if alarm_name == 'DCDB-01 Primary Disconnect' and dcdb_time_filter:
