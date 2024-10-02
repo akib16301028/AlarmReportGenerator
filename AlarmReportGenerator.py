@@ -70,7 +70,7 @@ def create_pivot_table(df, alarm_name):
     total_row = pivot[numeric_cols].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
-    # Replace numeric columns in total_row with empty strings where the sum is 0
+    # Replace numeric columns in total_row with empty strings
     total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
@@ -132,8 +132,8 @@ def create_offline_pivot(df):
         else:
             last_cluster = pivot.at[i, 'Cluster']
     
-    # Setting empty cells for the 'More than 48 hours' column if the value is zero
-    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace(0, "")
+    # Removed specific replacement for 'More than 48 hours' to let styling handle it
+    # pivot['More than 48 hours'] = pivot['More than 48 hours'].replace(0, "")
     
     return pivot, total_offline_count
 
@@ -224,11 +224,12 @@ def style_dataframe(df, is_dark_mode):
     styler = styler.apply(lambda x: highlight_zero(mask.loc[x.name]), axis=1)
     
     # Handle total row: set all cells to have background color if 'Cluster' is 'Total'
-    total_row_mask = df_style['Cluster'] == 'Total'
-    styler = styler.apply(
-        lambda x: [f'background-color: {cell_bg_color}; color: {font_color}' if total_row_mask.loc[x.name] else '' for _ in x],
-        axis=1
-    )
+    if 'Cluster' in df_style.columns:
+        total_row_mask = df_style['Cluster'] == 'Total'
+        styler = styler.apply(
+            lambda x: [f'background-color: {cell_bg_color}; color: {font_color}' if total_row_mask.loc[x.name] else '' for _ in x],
+            axis=1
+        )
     
     # Optional: Remove borders for a cleaner look
     styler.set_table_styles(
