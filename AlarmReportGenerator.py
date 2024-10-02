@@ -134,24 +134,6 @@ def create_offline_pivot(df):
 
     
     # Replace numeric columns in total_row with empty strings
-    numeric_cols = ['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']
-    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
-    
-    pivot = pd.concat([pivot, total_row], ignore_index=True)
-    
-    total_offline_count = int(pivot['Total'].iloc[-1])
-    
-    last_cluster = None
-    for i in range(len(pivot)):
-        if pivot.at[i, 'Cluster'] == last_cluster:
-            pivot.at[i, 'Cluster'] = ''
-        else:
-            last_cluster = pivot.at[i, 'Cluster']
-    
-    return pivot, total_offline_count
-
-    
-    # Replace numeric columns in total_row with empty strings
     numeric_cols = ['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']
     total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
     
@@ -218,7 +200,7 @@ def create_site_wise_log(df, selected_alarm):
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-# Function to style DataFrame: fill cells with #D0C0C0 if value is 0 or empty and handle total row
+# Function to style DataFrame: fill cells with #f0f0f0 if value is 0 or empty and handle total row
 def style_dataframe(df, duration_cols, is_dark_mode):
     # Create a copy for styling
     df_style = df.copy()
@@ -230,7 +212,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     df_style[duration_cols] = df_style[duration_cols].replace(0, "")
     
     # Define background colors
-    cell_bg_color = '#D0C0C0'
+    cell_bg_color = '#f0f0f0'
     font_color = 'black' if not is_dark_mode else 'black'
     
     # Create a Styler object
@@ -247,7 +229,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
     if total_row_mask.any():
         styler = styler.apply(
-            lambda x: ['background-color: #D0C0C0; color: black' if total_row_mask.loc[x.name] else '' for _ in x],
+            lambda x: ['background-color: #f0f0f0; color: black' if total_row_mask.loc[x.name] else '' for _ in x],
             axis=1
         )
         # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
