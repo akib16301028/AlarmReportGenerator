@@ -174,8 +174,8 @@ def style_dataframe(df, duration_cols, is_dark_mode):
         other_bg = '#99CBCC'      # Very light blue suitable for dark mode
         font_color = 'white'
     else:
-        duration_bg = '#FFEAE9'  # Very light gray
-        other_bg = '#ECFFFE'      # Very light blue
+        duration_bg = '#CD9A99'  # Very light gray
+        other_bg = '#99CBCC'      # Very light blue
         font_color = 'black'
 
     # Create Styler object
