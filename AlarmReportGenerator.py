@@ -91,26 +91,21 @@ def create_pivot_table(df, alarm_name):
 def create_offline_pivot(df):
     df = df.drop_duplicates()
     
+    # Create new columns for each duration category
     df['Less than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'Less than 24 hours' in x else 0)
     df['More than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 24 hours' in x and '72' not in x else 0)
-    df['More than 48 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 48 hours' in x else 0)  # New column
+    df['More than 48 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 48 hours' in x else 0)
     df['More than 72 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 72 hours' in x else 0)
     
     pivot = df.groupby(['Cluster', 'Zone']).agg({
         'Less than 24 hours': 'sum',
         'More than 24 hours': 'sum',
-        'More than 48 hours': 'sum',  # Include the new column in the aggregation
+        'More than 48 hours': 'sum',  # Include the new column here
         'More than 72 hours': 'sum',
         'Site Alias': 'nunique'
     }).reset_index()
 
     pivot = pivot.rename(columns={'Site Alias': 'Total'})
-    
-    # Replace 0 with empty strings in new columns
-    pivot['Less than 24 hours'] = pivot['Less than 24 hours'].replace(0, "")
-    pivot['More than 24 hours'] = pivot['More than 24 hours'].replace(0, "")
-    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace(0, "")  # Ensure empty cell for zero
-    pivot['More than 72 hours'] = pivot['More than 72 hours'].replace(0, "")
     
     total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
