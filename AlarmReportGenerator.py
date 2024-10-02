@@ -121,7 +121,7 @@ def create_offline_pivot(df):
 
     pivot = pivot.rename(columns={'Site Alias': 'Total'})
     
-    total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
+    total_row = pivot[['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
     # Replace numeric columns in total_row with empty strings
