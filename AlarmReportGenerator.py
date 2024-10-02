@@ -106,7 +106,10 @@ def create_offline_pivot(df):
     }).reset_index()
 
     pivot = pivot.rename(columns={'Site Alias': 'Total'})
-    
+
+    # Replace zero values in "More than 48 hours" with empty strings
+    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace(0, '')
+
     total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
@@ -127,23 +130,6 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
-    
-    # Replace numeric columns in total_row with empty strings
-    numeric_cols = ['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']
-    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
-    
-    pivot = pd.concat([pivot, total_row], ignore_index=True)
-    
-    total_offline_count = int(pivot['Total'].iloc[-1])
-    
-    last_cluster = None
-    for i in range(len(pivot)):
-        if pivot.at[i, 'Cluster'] == last_cluster:
-            pivot.at[i, 'Cluster'] = ''
-        else:
-            last_cluster = pivot.at[i, 'Cluster']
-    
-    return pivot, total_offline_count
 
 # Function to calculate time offline smartly (minutes, hours, or days)
 def calculate_time_offline(df, current_time):
