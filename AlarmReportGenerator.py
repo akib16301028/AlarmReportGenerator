@@ -162,22 +162,19 @@ def create_site_wise_log(df, selected_alarm):
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-# Function to style DataFrame: hide zeros, apply background color to specific columns
+# Function to style DataFrame: apply background color to specific columns
 def style_dataframe(df, duration_cols):
-    # Replace 0 with empty strings in duration columns
-    df_style = df.copy()
-    df_style[duration_cols] = df_style[duration_cols].replace(0, "")
-
     # Create Styler object
-    styler = df_style.style
-
-    # Apply background color to duration columns (darker shade for dark mode)
+    styler = df.style
+    
+    # Apply a very light red background to the duration columns
     styler = styler.applymap(
-        lambda x: 'background-color: #444444; color: white', 
+        lambda x: 'background-color: #ffcccc',  # Very light red color
         subset=duration_cols
     )
 
     return styler
+
 
 # Streamlit app
 st.title("StatusMatrix")
