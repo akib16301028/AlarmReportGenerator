@@ -258,14 +258,16 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # === Current Alarms Filters ===
 st.sidebar.subheader("Current Alarms Filters")
 st.sidebar.markdown("_[select alarm first to filter out]_")  # Move this to a new line
-        # Get unique alarm names
-        alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
-        alarm_names.insert(0, "All")  # Add 'All' option
-        selected_alarm = st.sidebar.selectbox(
-            "Select Alarm to Filter",
-            options=alarm_names,
-            index=0
-        )
+
+# Get unique alarm names
+alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
+alarm_names.insert(0, "All")  # Add 'All' option
+selected_alarm = st.sidebar.selectbox(
+    "Select Alarm to Filter",
+    options=alarm_names,
+    index=0
+)
+
 
         # === Site-Wise Log Filters ===
         st.sidebar.subheader("Site-Wise Log Filters")
