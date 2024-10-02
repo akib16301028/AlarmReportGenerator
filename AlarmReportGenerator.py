@@ -130,83 +130,77 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         current_time = extract_timestamp(uploaded_alarm_file.name)
         offline_time = extract_timestamp(uploaded_offline_file.name)
 
-        # Process the Offline Report
-        pivot_offline, total_offline_count = create_offline_pivot(offline_df)
-
         # ------------------ Offline Report Filters ------------------
-        st.sidebar.header("Offline Report Filters")
-        
-        # Date Filter: Assuming 'Last Online Time' exists in offline_df
-        if 'Last Online Time' in offline_df.columns:
-            offline_df['Last Online Time'] = pd.to_datetime(offline_df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
-            min_date = offline_df['Last Online Time'].min().date()
-            max_date = offline_df['Last Online Time'].max().date()
-            selected_date = st.sidebar.date_input("Select Date Range", [min_date, max_date], min_value=min_date, max_value=max_date)
-            if len(selected_date) == 2:
-                start_date, end_date = selected_date
-                mask = (offline_df['Last Online Time'].dt.date >= start_date) & (offline_df['Last Online Time'].dt.date <= end_date)
-                filtered_offline_df = offline_df[mask]
+        st.header("Offline Report Filters")
+        filter_expander_offline = st.expander("🔍 Apply Filters", expanded=True)
+
+        with filter_expander_offline:
+            # Date Filter: Assuming 'Last Online Time' exists in offline_df
+            if 'Last Online Time' in offline_df.columns:
+                offline_df['Last Online Time'] = pd.to_datetime(offline_df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
+                min_date = offline_df['Last Online Time'].min().date()
+                max_date = offline_df['Last Online Time'].max().date()
+                selected_date = st.date_input("Select Date Range", [min_date, max_date], min_value=min_date, max_value=max_date)
+                if len(selected_date) == 2:
+                    start_date, end_date = selected_date
+                    mask = (offline_df['Last Online Time'].dt.date >= start_date) & (offline_df['Last Online Time'].dt.date <= end_date)
+                    filtered_offline_df = offline_df[mask]
+                else:
+                    filtered_offline_df = offline_df.copy()
             else:
                 filtered_offline_df = offline_df.copy()
-        else:
-            filtered_offline_df = offline_df.copy()
 
-        # Zone Filter
-        zones = filtered_offline_df['Zone'].dropna().unique().tolist()
-        selected_zones = st.sidebar.multiselect("Select Zones", options=sorted(zones), default=sorted(zones))
+            # Zone Filter
+            zones = filtered_offline_df['Zone'].dropna().unique().tolist()
+            selected_zones = st.multiselect("Select Zones", options=sorted(zones), default=sorted(zones))
 
-        # Cluster Filter
-        clusters = filtered_offline_df['Cluster'].dropna().unique().tolist()
-        selected_clusters = st.sidebar.multiselect("Select Clusters", options=sorted(clusters), default=sorted(clusters))
+            # Cluster Filter
+            clusters = filtered_offline_df['Cluster'].dropna().unique().tolist()
+            selected_clusters = st.multiselect("Select Clusters", options=sorted(clusters), default=sorted(clusters))
 
-        # Apply Zone and Cluster Filters
-        filtered_offline_df = filtered_offline_df[
-            (filtered_offline_df['Zone'].isin(selected_zones)) &
-            (filtered_offline_df['Cluster'].isin(selected_clusters))
-        ]
+            # Apply Zone and Cluster Filters
+            filtered_offline_df = filtered_offline_df[
+                (filtered_offline_df['Zone'].isin(selected_zones)) &
+                (filtered_offline_df['Cluster'].isin(selected_clusters))
+            ]
 
         # Recreate pivot table based on filters
-        pivot_offline_filtered, total_offline_count_filtered = create_offline_pivot(filtered_offline_df)
+        pivot_offline, total_offline_count = create_offline_pivot(filtered_offline_df)
 
         # Display Offline Report
-        st.markdown("### Offline Report")
-        st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
-        st.markdown(f"**Total Offline Count:** {total_offline_count_filtered}")
-        st.dataframe(pivot_offline_filtered)
+        st.subheader("Offline Report")
+        st.markdown(f"*till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}*")
+        st.markdown(f"**Total Offline Count:** {total_offline_count}")
+        st.dataframe(pivot_offline)
 
         # Calculate time offline smartly using the offline time
         time_offline_df = calculate_time_offline(filtered_offline_df, offline_time)
 
         # ------------------ Summary of Offline Sites Filters ------------------
-        st.markdown("### Summary of Offline Sites")
-        
-        # Apply the same filters to summary_df
-        summary_df = time_offline_df.copy()
-
-        # Date Filter already applied above
-        # Zone and Cluster Filters already applied above
-
-        st.dataframe(summary_df)
+        st.subheader("Summary of Offline Sites")
+        st.dataframe(time_offline_df)
 
         # ------------------ Current Alarms Filters ------------------
-        # Check for required columns in Alarm Report
-        alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time']
-        if not all(col in alarm_df.columns for col in alarm_required_columns):
-            st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
-        else:
+        st.header("Current Alarms Filters")
+        filter_expander_alarms = st.expander("🔍 Apply Filters", expanded=True)
+
+        with filter_expander_alarms:
+            # Check for required columns in Alarm Report
+            alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time']
+            if not all(col in alarm_df.columns for col in alarm_required_columns):
+                st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
+                st.stop()
+
             # Extract Client and filter out nulls
             alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
             alarm_df = alarm_df[~alarm_df['Client'].isnull()]
-
-            # ------------------ Alarm Report Filters ------------------
-            st.sidebar.header("Current Alarms Filters")
 
             # Date Filter: Assuming 'Alarm Time' exists in alarm_df
             if 'Alarm Time' in alarm_df.columns:
                 alarm_df['Alarm Time'] = pd.to_datetime(alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p')
                 min_alarm_date = alarm_df['Alarm Time'].min().date()
                 max_alarm_date = alarm_df['Alarm Time'].max().date()
-                selected_alarm_date = st.sidebar.date_input("Select Alarm Date Range", [min_alarm_date, max_alarm_date], min_value=min_alarm_date, max_value=max_alarm_date)
+                selected_alarm_date = st.date_input("Select Alarm Date Range", [min_alarm_date, max_alarm_date], min_value=min_alarm_date, max_value=max_alarm_date, key='alarm_date')
                 if len(selected_alarm_date) == 2:
                     start_alarm_date, end_alarm_date = selected_alarm_date
                     mask_alarm_date = (alarm_df['Alarm Time'].dt.date >= start_alarm_date) & (alarm_df['Alarm Time'].dt.date <= end_alarm_date)
@@ -218,11 +212,11 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
             # Zone Filter
             alarm_zones = filtered_alarm_df['Zone'].dropna().unique().tolist()
-            selected_alarm_zones = st.sidebar.multiselect("Select Alarm Zones", options=sorted(alarm_zones), default=sorted(alarm_zones))
+            selected_alarm_zones = st.multiselect("Select Alarm Zones", options=sorted(alarm_zones), default=sorted(alarm_zones), key='alarm_zones')
 
             # Cluster Filter
             alarm_clusters = filtered_alarm_df['Cluster'].dropna().unique().tolist()
-            selected_alarm_clusters = st.sidebar.multiselect("Select Alarm Clusters", options=sorted(alarm_clusters), default=sorted(alarm_clusters))
+            selected_alarm_clusters = st.multiselect("Select Alarm Clusters", options=sorted(alarm_clusters), default=sorted(alarm_clusters), key='alarm_clusters')
 
             # Apply Zone and Cluster Filters
             filtered_alarm_df = filtered_alarm_df[
@@ -232,54 +226,55 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
             # Dropdown to select specific alarms
             alarm_names = filtered_alarm_df['Alarm Name'].unique().tolist()
-            selected_alarm = st.sidebar.multiselect("Select Alarms to Display", options=sorted(alarm_names), default=sorted(alarm_names))
+            selected_alarm = st.multiselect("Select Alarms to Display", options=sorted(alarm_names), default=sorted(alarm_names), key='selected_alarms')
 
             # Filter based on selected alarms
             filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Alarm Name'].isin(selected_alarm)]
 
-            # Recreate pivot tables based on filters
-            ordered_alarm_names = selected_alarm  # Only the selected alarms
+        # Recreate pivot tables based on filters
+        ordered_alarm_names = selected_alarm  # Only the selected alarms
 
-            # Create a dictionary to store all pivot tables for current alarms
-            alarm_data = {}
+        # Create a dictionary to store all pivot tables for current alarms
+        alarm_data = {}
 
-            for alarm_name in ordered_alarm_names:
-                data = create_pivot_table(filtered_alarm_df, alarm_name)
-                alarm_data[alarm_name] = data
+        for alarm_name in ordered_alarm_names:
+            data = create_pivot_table(filtered_alarm_df, alarm_name)
+            alarm_data[alarm_name] = data
 
-            # Display each pivot table for the current alarms
-            st.markdown("### Current Alarms Report")
-            st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
+        # Display each pivot table for the current alarms
+        st.subheader("Current Alarms Report")
+        st.markdown(f"*till {current_time.strftime('%Y-%m-%d %H:%M:%S')}*")
 
-            for alarm_name, (pivot, total_count) in alarm_data.items():
-                st.markdown(f"#### **{alarm_name}**")
-                st.markdown(f"<small><i>Alarm Count: {total_count}</i></small>", unsafe_allow_html=True)
-                st.dataframe(pivot)
+        for alarm_name, (pivot, total_count) in alarm_data.items():
+            st.markdown(f"### {alarm_name}")
+            st.markdown(f"till {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            st.markdown(f"**Alarm Count:** {total_count}")
+            st.dataframe(pivot)
 
-            # Prepare download for Current Alarms Report only if there is data
-            if alarm_data:
-                current_alarm_excel_data = to_excel({alarm_name: data[0] for alarm_name, data in alarm_data.items()})
-                st.download_button(
-                    label="Download Current Alarms Report",
-                    data=current_alarm_excel_data,
-                    file_name=f"Current_Alarms_Report_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            else:
-                st.warning("No current alarm data available for export.")
-
-            # Prepare download for Offline Report with filters applied
-            offline_report_data = {
-                "Offline Summary": pivot_offline_filtered,
-                "Offline Details": summary_df
-            }
-            offline_excel_data = to_excel(offline_report_data)
-
+        # Prepare download for Current Alarms Report only if there is data
+        if alarm_data:
+            current_alarm_excel_data = to_excel({alarm_name: data[0] for alarm_name, data in alarm_data.items()})
             st.download_button(
-                label="Download Offline Report",
-                data=offline_excel_data,
-                file_name=f"Offline_Report_{offline_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
+                label="Download Current Alarms Report",
+                data=current_alarm_excel_data,
+                file_name=f"Current_Alarms_Report_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+        else:
+            st.warning("No current alarm data available for export.")
+
+        # Prepare download for Offline Report with filters applied
+        offline_report_data = {
+            "Offline Summary": pivot_offline,
+            "Offline Details": time_offline_df
+        }
+        offline_excel_data = to_excel(offline_report_data)
+
+        st.download_button(
+            label="Download Offline Report",
+            data=offline_excel_data,
+            file_name=f"Offline_Report_{offline_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
