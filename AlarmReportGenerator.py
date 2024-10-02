@@ -161,14 +161,14 @@ def create_site_wise_log(df, selected_alarm):
     
     # Include the 'Duration Slot (Hours)' column
     # Rename it to 'Duration (Hours)' for clarity
-    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time', 'Duration Slot (Hours)']]
+    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time','Duration', 'Duration Slot (Hours)']]
     filtered_df = filtered_df.rename(columns={'Duration Slot (Hours)': 'Duration (Hours)'})
     
     # Convert duration to a more readable format
     filtered_df['Duration'] = filtered_df['Duration (Hours)'].apply(format_duration)
     
     # Select the columns to display, including the new 'Duration' column
-    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time', 'Duration']]
+    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time','Duration', 'Duration(Hours)']]
     
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
