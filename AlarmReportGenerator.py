@@ -127,6 +127,24 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
+    
+    # Replace numeric columns in total_row with empty strings
+    numeric_cols = ['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
+    
+    pivot = pd.concat([pivot, total_row], ignore_index=True)
+    
+    total_offline_count = int(pivot['Total'].iloc[-1])
+    
+    last_cluster = None
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
+        else:
+            last_cluster = pivot.at[i, 'Cluster']
+    
+    return pivot, total_offline_count
+
 # Function to calculate time offline smartly (minutes, hours, or days)
 def calculate_time_offline(df, current_time):
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
@@ -146,6 +164,7 @@ def calculate_time_offline(df, current_time):
     df['Last Online Time'] = df['Last Online Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
 
     return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
+
 
 # Function to extract the file name's timestamp
 def extract_timestamp(file_name):
@@ -172,7 +191,7 @@ def create_site_wise_log(df, selected_alarm):
         filtered_df = df.copy()
     else:
         filtered_df = df[df['Alarm Name'] == selected_alarm].copy()
-    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time', 'Duration']]
+    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time','Duration']]
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
@@ -200,73 +219,303 @@ def style_dataframe(df, duration_cols, is_dark_mode):
             return f'background-color: {cell_bg_color}; color: {font_color}'
         return ''
     
-    styler = styler.applymap(highlight_zero, subset=duration_cols)
+    styler = styler.applymap(highlight_zero)
     
-    # Make the total row bold
+    # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
     if total_row_mask.any():
-        styler = styler.apply(lambda x: ['font-weight: bold' if total_row_mask.iloc[i] else '' for i in range(len(x))], axis=1)
+        styler = styler.apply(
+            lambda x: ['background-color: #f0f0f0; color: black' if total_row_mask.loc[x.name] else '' for _ in x],
+            axis=1
+        )
+        # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
+        styler = styler.applymap(
+            lambda x: f'background-color: {cell_bg_color}; color: {font_color}',
+            subset=['Cluster', 'Zone']
+        )
+    
+    # Optional: Remove borders for a cleaner look
+    styler.set_table_styles(
+        [{
+            'selector': 'th',
+            'props': [('border', '1px solid black')]
+        },
+        {
+            'selector': 'td',
+            'props': [('border', '1px solid black')]
+        }]
+    )
     
     return styler
 
-# Streamlit application layout
-st.title("Alarm Report Application")
-st.sidebar.title("Upload Data")
+# Function to determine if the current theme is dark
+def is_dark_mode():
+    # Streamlit provides theme options that can be accessed via st.get_option
+    # As of Streamlit 1.10, you can access the theme via st.runtime
+    # However, this may vary based on the Streamlit version
+    # Here, we'll use st.session_state as a workaround
 
-# File upload for current alarms
-uploaded_file_alarms = st.sidebar.file_uploader("Upload Current Alarms CSV", type=["csv"])
-if uploaded_file_alarms is not None:
-    df_alarms = pd.read_csv(uploaded_file_alarms)
-    df_alarms['Alarm Time'] = pd.to_datetime(df_alarms['Alarm Time'])
-    st.sidebar.success("Alarms data uploaded successfully.")
-
-# File upload for offline reports
-uploaded_file_offline = st.sidebar.file_uploader("Upload Offline Reports CSV", type=["csv"])
-if uploaded_file_offline is not None:
-    df_offline = pd.read_csv(uploaded_file_offline)
-    st.sidebar.success("Offline reports data uploaded successfully.")
-
-# Select an alarm to filter
-selected_alarm = st.sidebar.selectbox("Select Alarm", options=['All'] + df_alarms['Alarm Name'].unique().tolist() if 'df_alarms' in locals() else [])
-if 'df_alarms' in locals():
-    if selected_alarm:
-        # Create the main pivot table for the selected alarm
-        pivot_table, total_alarm_count = create_pivot_table(df_alarms, selected_alarm)
-        
-        # Display the pivot table
-        st.subheader(f"Pivot Table for '{selected_alarm}' Alarm")
-        st.dataframe(style_dataframe(pivot_table, ['Total', '0+', '2+', '4+', '8+'], is_dark_mode=False), use_container_width=True)
-        
-        # Create and display site-wise log
-        site_wise_log = create_site_wise_log(df_alarms, selected_alarm)
-        st.subheader("Site-wise Log Table")
-        st.dataframe(site_wise_log, use_container_width=True)
-
-# Display offline report if uploaded
-if 'df_offline' in locals():
-    current_time = pd.to_datetime("now")
-    df_offline = calculate_time_offline(df_offline, current_time)
-    
-    # Displaying the offline report
-    st.subheader("Offline Report")
-    st.dataframe(df_offline, use_container_width=True)
-    
-    # Create the offline pivot table
-    offline_pivot, total_offline_count = create_offline_pivot(df_offline)
-    
-    # Display the offline pivot table
-    st.subheader("Offline Pivot Table")
-    st.dataframe(style_dataframe(offline_pivot, ['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total'], is_dark_mode=False), use_container_width=True)
-
-# Button to download the report as Excel
-if st.button("Download Report"):
-    if 'df_alarms' in locals() and 'df_offline' in locals():
-        report_dict = {
-            "Alarm Report": pivot_table,
-            "Site-wise Log": site_wise_log,
-            "Offline Report": df_offline,
-            "Offline Pivot": offline_pivot
-        }
-        excel_data = to_excel(report_dict)
-        st.download_button("Download Excel", data=excel_data, file_name="alarm_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    # Check if 'theme' is in session_state
+    if 'theme' in st.session_state:
+        theme = st.session_state['theme']
     else:
-        st.warning("Please upload both Current Alarms and Offline Reports to download the report.")
+        # Default to light mode if not set
+        theme = 'light'
+
+    # Assume 'dark' indicates dark mode
+    return theme.lower() == 'dark'
+
+# Streamlit app
+st.title("StatusMatrix")
+
+# File Uploads
+uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
+uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
+
+if uploaded_alarm_file is not None and uploaded_offline_file is not None:
+    try:
+        # Read Excel files starting from the third row (header=2)
+        alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
+        offline_df = pd.read_excel(uploaded_offline_file, header=2)
+
+        # Extract timestamps from file names
+        current_time = extract_timestamp(uploaded_alarm_file.name)
+        offline_time = extract_timestamp(uploaded_offline_file.name)
+
+        # Initialize Sidebar Filters
+        st.sidebar.header("Filters")
+
+        # Get unique clusters for filtering
+        offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
+        offline_clusters.insert(0, "All")  # Add 'All' option
+        selected_offline_cluster = st.sidebar.selectbox(
+            "Select Cluster",
+            options=offline_clusters,
+            index=0
+        )
+
+        # === Current Alarms Filters ===
+        st.sidebar.subheader("Current Alarms Filters")
+        st.sidebar.text("[select alarm first]")
+        # Get unique alarm names
+        alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
+        alarm_names.insert(0, "All")  # Add 'All' option
+        selected_alarm = st.sidebar.selectbox(
+            "Select Alarm to Filter",
+            options=alarm_names,
+            index=0
+        )
+
+        # === Site-Wise Log Filters ===
+        st.sidebar.subheader("Site-Wise Log Filters")
+        view_site_wise = st.sidebar.checkbox("View Site-Wise Log")
+        if view_site_wise:
+            site_wise_alarms = st.sidebar.selectbox(
+                "Select Alarm for Site-Wise Log",
+                options=alarm_names,
+                index=0
+            )
+
+        # Determine if dark mode is active
+        # Note: Streamlit does not provide a direct method to detect theme,
+        # so this function is a placeholder and may need adjustment based on Streamlit version
+        dark_mode = is_dark_mode()
+
+        # Process the Offline Report
+        pivot_offline, total_offline_count = create_offline_pivot(offline_df)
+
+        # Apply Offline Cluster Filters
+        if selected_offline_cluster != "All":
+            if 'Total' in pivot_offline['Cluster'].values:
+                filtered_pivot_offline = pivot_offline[
+                    (pivot_offline['Cluster'] == selected_offline_cluster) | (pivot_offline['Cluster'] == 'Total')
+                ]
+            else:
+                filtered_pivot_offline = pivot_offline[pivot_offline['Cluster'] == selected_offline_cluster]
+        else:
+            filtered_pivot_offline = pivot_offline.copy()
+
+        # Display the Offline Report
+        st.markdown("### Offline Report")
+        st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
+        st.markdown(f"**Total Offline Count:** {total_offline_count}")
+
+        # Apply styling
+        styled_pivot_offline = style_dataframe(filtered_pivot_offline, ['Less than 24 hours', 'More than 24 hours', 'More than 72 hours'], dark_mode)
+
+        # Display styled DataFrame
+        st.dataframe(styled_pivot_offline)
+
+        # Calculate time offline smartly using the offline time
+        time_offline_df = calculate_time_offline(offline_df, offline_time)
+
+        # Create a summary table based on offline duration
+        summary_dict = {}
+        for index, row in time_offline_df.iterrows():
+            duration = row['Offline Duration']
+            if duration not in summary_dict:
+                summary_dict[duration] = []
+            summary_dict[duration].append(row)
+
+        # Prepare DataFrame for display
+        summary_data = []
+        for duration, sites in summary_dict.items():
+            for site in sites:
+                summary_data.append([duration, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
+
+        # Convert to DataFrame
+        summary_df_full = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name", "Cluster", "Zone", "Last Online Time"])
+
+        # Apply Offline Cluster Filters to Summary
+        if selected_offline_cluster != "All":
+            filtered_summary_df = summary_df_full[summary_df_full['Cluster'] == selected_offline_cluster]
+        else:
+            filtered_summary_df = summary_df_full.copy()
+
+        # Display the Summary of Offline Sites
+        st.markdown("### Summary of Offline Sites")
+        st.markdown(f"**Total Offline Sites:** {filtered_summary_df['Site Name'].nunique()}")
+        
+        # Apply styling to the summary table
+        styled_summary_df = style_dataframe(filtered_summary_df, [], dark_mode)
+        st.dataframe(styled_summary_df)
+
+        # === Site-Wise Log Display ===
+        if view_site_wise:
+            st.markdown("### Site-Wise Log")
+            if site_wise_alarms != "All":
+                site_wise_log_df = create_site_wise_log(alarm_df, site_wise_alarms)
+                # Apply styling if needed
+                styled_site_wise_log = style_dataframe(site_wise_log_df, [], dark_mode)
+                st.dataframe(styled_site_wise_log)
+            else:
+                st.info("No specific alarm selected for Site-Wise Log.")
+
+        # Check for required columns in Alarm Report
+        alarm_required_columns = ['RMS Station', 'Cluster', 'Zone', 'Site Alias', 'Alarm Name', 'Alarm Time', 'Duration Slot (Hours)']
+        if not all(col in alarm_df.columns for col in alarm_required_columns):
+            st.error(f"The uploaded Alarm Report file is missing one of the required columns: {alarm_required_columns}")
+        else:
+            # Extract client information
+            alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
+            alarm_df = alarm_df[~alarm_df['Client'].isnull()]
+
+            # Prepare download for Offline Report
+            offline_report_data = {
+                "Offline Summary": filtered_pivot_offline,
+                "Offline Details": filtered_summary_df
+            }
+            offline_excel_data = to_excel(offline_report_data)
+
+            st.download_button(
+                label="Download Offline Report",
+                data=offline_excel_data,
+                file_name=f"Offline_Report_{offline_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+            # Add the current time to the alarm header
+            st.markdown(f"### Current Alarms Report")
+            st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
+
+            # Define the priority order for the alarm names
+            priority_order = [
+                'Mains Fail',
+                'Battery Low',
+                'DCDB-01 Primary Disconnect',
+                'PG Run',
+                'MDB Fault',
+                'Door Open'
+            ]
+
+            # Separate prioritized alarms from the rest
+            prioritized_alarms = [name for name in priority_order if name in alarm_names]
+            non_prioritized_alarms = [name for name in alarm_names if name not in priority_order]
+
+            # Combine both lists to maintain the desired order
+            ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
+
+            # Create a dictionary to store all pivot tables for current alarms
+            alarm_data = {}
+
+            # Process alarms based on selection
+            for alarm_name in ordered_alarm_names:
+                # Skip alarms if a specific alarm is selected and it's not the current one
+                if selected_alarm != "All" and alarm_name != selected_alarm:
+                    continue
+
+                # Initialize the filter criteria
+                filtered_alarm_df = alarm_df.copy()
+
+                if selected_alarm != "All":
+                    # Filter by selected alarm
+                    filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Alarm Name'] == alarm_name]
+                    
+                    # Apply cluster filter
+                    if selected_offline_cluster != "All":
+                        filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Cluster'] == selected_offline_cluster]
+                    
+                    # Apply date range filter
+                    alarm_dates = pd.to_datetime(filtered_alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
+                    min_date = alarm_dates.min().date()
+                    max_date = alarm_dates.max().date()
+                    selected_date_range = st.sidebar.date_input(
+                        f"Select Date Range for {alarm_name}",
+                        value=(min_date, max_date),
+                        min_value=min_date,
+                        max_value=max_date,
+                        key=f"date_{alarm_name}"
+                    )
+                    # Ensure date range is a tuple of two dates
+                    if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
+                        start_date, end_date = selected_date_range
+                    else:
+                        start_date, end_date = min_date, max_date
+
+                    filtered_alarm_df['Alarm Time Parsed'] = pd.to_datetime(
+                        filtered_alarm_df['Alarm Time'], 
+                        format='%d/%m/%Y %I:%M:%S %p', 
+                        errors='coerce'
+                    )
+                    filtered_alarm_df = filtered_alarm_df[
+                        (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) &
+                        (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
+                    ]
+
+                # Special filter for "DCDB-01 Primary Disconnect"
+                if alarm_name == 'DCDB-01 Primary Disconnect':
+                    filtered_alarm_df = filtered_alarm_df[~filtered_alarm_df['RMS Station'].str.startswith('L')]
+
+                # Create pivot table for the filtered data
+                pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
+                alarm_data[alarm_name] = (pivot, total_count)
+
+            # Display each pivot table for the current alarms with styling
+            for alarm_name, (pivot, total_count) in alarm_data.items():
+                st.markdown(f"### **{alarm_name}**")
+                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
+                st.markdown(f"**Alarm Count:** {total_count}")
+
+                # Identify duration columns
+                duration_cols = ['0+', '2+', '4+', '8+']
+
+                # Apply styling
+                styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
+
+                # Display styled DataFrame
+                st.dataframe(styled_pivot)
+
+            # Prepare download for Current Alarms Report only if there is data
+            if alarm_data:
+                # Create a dictionary with each alarm's pivot table
+                current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
+                current_alarm_excel_data = to_excel(current_alarm_excel_dict)
+                st.download_button(
+                    label="Download Current Alarms Report",
+                    data=current_alarm_excel_data,
+                    file_name=f"Current_Alarms_Report_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.warning("No current alarm data available for export.")
+    except Exception as e:
+        st.error(f"An error occurred while processing the files: {e}")
