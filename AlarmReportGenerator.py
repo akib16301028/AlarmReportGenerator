@@ -69,6 +69,10 @@ def create_pivot_table(df, alarm_name):
     numeric_cols = pivot.select_dtypes(include=['number']).columns
     total_row = pivot[numeric_cols].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
+    
+    # Replace numeric columns in total_row with empty strings
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
+    
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
     total_alarm_count = pivot['Total'].iloc[-1]
@@ -103,10 +107,14 @@ def create_offline_pivot(df):
     total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
+    # Replace numeric columns in total_row with empty strings
+    numeric_cols = ['Less than 24 hours', 'More than 24 hours', 'More than 72 hours', 'Total']
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
+    
     pivot = pd.concat([pivot, total_row], ignore_index=True)
-
+    
     total_offline_count = int(pivot['Total'].iloc[-1])
-
+    
     last_cluster = None
     for i in range(len(pivot)):
         if pivot.at[i, 'Cluster'] == last_cluster:
@@ -162,39 +170,45 @@ def create_site_wise_log(df, selected_alarm):
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-# Function to style DataFrame: hide zeros, apply background color to specific columns
+# Function to style DataFrame: fill cells with #f0f0f0 if value is 0 or empty and handle total row
 def style_dataframe(df, duration_cols, is_dark_mode):
-    # Replace 0 with empty strings in duration columns
+    # Create a copy for styling
     df_style = df.copy()
+    
+    # Identify the total row based on 'Cluster' column
+    total_row_mask = df_style['Cluster'] == 'Total'
+    
+    # Replace 0 with empty strings in duration columns
     df_style[duration_cols] = df_style[duration_cols].replace(0, "")
-
-    # Define background colors based on theme
-    if is_dark_mode:
-        duration_bg = '#f0f0f0'  # Very light gray suitable for dark mode
-        other_bg = '#f0f0f0'      # Very light blue suitable for dark mode
-        font_color = 'white'
-    else:
-        duration_bg = '#f0f0f0'  # Very light gray
-        other_bg = '#f0f0f0'      # Very light blue
-        font_color = 'black'
-
-    # Create Styler object
+    
+    # Define background colors
+    cell_bg_color = '#f0f0f0'
+    font_color = 'black' if not is_dark_mode else 'white'
+    
+    # Create a Styler object
     styler = df_style.style
-
-    # Apply background color to duration columns
-    styler = styler.applymap(
-        lambda x: f'background-color: {duration_bg}; color: {font_color}' if x != "" else '',
-        subset=duration_cols
-    )
-
-    # Apply background color to other columns (excluding Cluster and Zone)
-    non_duration_cols = [col for col in df_style.columns if col not in ['Cluster', 'Zone'] + duration_cols]
-    styler = styler.applymap(
-        lambda x: f'background-color: {other_bg}; color: {font_color}' if pd.notna(x) and x != "" else '',
-        subset=non_duration_cols
-    )
-
-    # Hide borders for a cleaner look
+    
+    # Apply background color to cells with 0 or empty values
+    def highlight_zero(val):
+        if val == 0 or val == "":
+            return f'background-color: {cell_bg_color}; color: {font_color}'
+        return ''
+    
+    styler = styler.applymap(highlight_zero)
+    
+    # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
+    if total_row_mask.any():
+        styler = styler.apply(
+            lambda x: ['background-color: #f0f0f0; color: white' if total_row_mask.loc[x.name] else '' for _ in x],
+            axis=1
+        )
+        # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
+        styler = styler.applymap(
+            lambda x: f'background-color: {cell_bg_color}; color: {font_color}',
+            subset=['Cluster', 'Zone']
+        )
+    
+    # Optional: Remove borders for a cleaner look
     styler.set_table_styles(
         [{
             'selector': 'th',
@@ -205,7 +219,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
             'props': [('border', '1px solid black')]
         }]
     )
-
+    
     return styler
 
 # Function to determine if the current theme is dark
@@ -245,7 +259,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Initialize Sidebar Filters
         st.sidebar.header("Filters")
 
-        
         # Get unique clusters for filtering
         offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
         offline_clusters.insert(0, "All")  # Add 'All' option
@@ -266,8 +279,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             options=alarm_names,
             index=0
         )
-
-
 
         # === Site-Wise Log Filters ===
         st.sidebar.subheader("Site-Wise Log Filters")
@@ -302,7 +313,12 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.markdown("### Offline Report")
         st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
-        st.dataframe(filtered_pivot_offline)
+
+        # Apply styling
+        styled_pivot_offline = style_dataframe(filtered_pivot_offline, ['Less than 24 hours', 'More than 24 hours', 'More than 72 hours'], dark_mode)
+
+        # Display styled DataFrame
+        st.dataframe(styled_pivot_offline)
 
         # Calculate time offline smartly using the offline time
         time_offline_df = calculate_time_offline(offline_df, offline_time)
@@ -333,14 +349,19 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Display the Summary of Offline Sites
         st.markdown("### Summary of Offline Sites")
         st.markdown(f"**Total Offline Sites:** {filtered_summary_df['Site Name'].nunique()}")
-        st.dataframe(filtered_summary_df)
+        
+        # Apply styling to the summary table
+        styled_summary_df = style_dataframe(filtered_summary_df, [], dark_mode)
+        st.dataframe(styled_summary_df)
 
         # === Site-Wise Log Display ===
         if view_site_wise:
             st.markdown("### Site-Wise Log")
             if site_wise_alarms != "All":
                 site_wise_log_df = create_site_wise_log(alarm_df, site_wise_alarms)
-                st.dataframe(site_wise_log_df)
+                # Apply styling if needed
+                styled_site_wise_log = style_dataframe(site_wise_log_df, [], dark_mode)
+                st.dataframe(styled_site_wise_log)
             else:
                 st.info("No specific alarm selected for Site-Wise Log.")
 
