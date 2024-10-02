@@ -170,12 +170,12 @@ def style_dataframe(df, duration_cols, is_dark_mode):
 
     # Define background colors based on theme
     if is_dark_mode:
-        duration_bg = '#FED8B1'  # Very light gray suitable for dark mode
-        other_bg = '#B3D9D9'      # Very light blue suitable for dark mode
+        duration_bg = '#FFCCCB'  # Very light gray suitable for dark mode
+        other_bg = '#1E90FF'      # Very light blue suitable for dark mode
         font_color = 'white'
     else:
-        duration_bg = '#FED8B1'  # Very light gray
-        other_bg = '#B3D9D9'      # Very light blue
+        duration_bg = '#FFCCCB'  # Very light gray
+        other_bg = '#ADD8E6'      # Very light blue
         font_color = 'black'
 
     # Create Styler object
@@ -188,7 +188,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     )
 
     # Apply background color to other columns (excluding Cluster and Zone)
-    non_duration_cols = [col for col in df_style.columns if col not  in ['Cluster', 'Zone'] + duration_cols]
+    non_duration_cols = [col for col in df_style.columns if col not in ['Cluster', 'Zone'] + duration_cols]
     styler = styler.applymap(
         lambda x: f'background-color: {other_bg}; color: {font_color}' if pd.notna(x) and x != "" else '',
         subset=non_duration_cols
