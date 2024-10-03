@@ -116,7 +116,7 @@ def create_offline_pivot(df):
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
-    total_offline_count = int(pivot['Total'].iloc[-1])
+    total_offline_count = int(pivot['Total'].iloc[-1]) if not pd.isna(pivot['Total'].iloc[-1]) else 0
     
     last_cluster = None
     for i in range(len(pivot)):
@@ -129,22 +129,24 @@ def create_offline_pivot(df):
 
 # Function to calculate time offline smartly (minutes, hours, or days)
 def calculate_time_offline(df, current_time):
-    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
+    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
     df['Hours Offline'] = (current_time - df['Last Online Time']).dt.total_seconds() / 3600
-
+    
     def format_offline_duration(hours):
+        if pd.isna(hours):
+            return "Unknown"
         if hours < 1:
             return f"{int(hours * 60)} minutes"
         elif hours < 24:
             return f"{int(hours)} hours"
         else:
             return f"{int(hours // 24)} days"
-
+    
     df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
-
+    
     # Format 'Last Online Time' to exclude microseconds
     df['Last Online Time'] = df['Last Online Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-
+    
     return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
 
 # Updated Function to extract the file name's timestamp
@@ -160,8 +162,9 @@ def extract_timestamp(file_name):
             'January', 'February', 'March', 'April', 'May', 'June', 
             'July', 'August', 'September', 'October', 'November', 'December'
         ])
-        # Define pattern allowing spaces or underscores
-        pattern = rf'({months}[\s_]+\d+(?:st|nd|rd|th)?[\s_]+\d{{4}},[\s_]+\d+_\d+_\d+_[ap]m)'
+        # Define pattern allowing spaces or underscores and flexible separators
+        # This pattern looks for the timestamp at the end of the filename
+        pattern = rf'({months}[\s_]*\d+(?:st|nd|rd|th)?[\s_]*\d{{4}},[\s_]*\d+_\d+_\d+_[ap]m)$'
         match = re.search(pattern, file_name)
         if match:
             timestamp_str = match.group(1)
@@ -176,14 +179,17 @@ def extract_timestamp(file_name):
     timestamp_str = re.sub(r'\s+', ' ', timestamp_str)
 
     # Parse the timestamp
-    return pd.to_datetime(timestamp_str, format='%B %d %Y, %I:%M:%S %p', errors='coerce')
+    parsed_time = pd.to_datetime(timestamp_str, format='%B %d %Y, %I:%M:%S %p', errors='coerce')
+    if pd.isna(parsed_time):
+        return None
+    return parsed_time
 
 # Function to convert multiple DataFrames to Excel with separate sheets
 def to_excel(dfs_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         for sheet_name, df in dfs_dict.items():
-            valid_sheet_name = re.sub(r'[\\/*?:[\]]', '_', sheet_name)[:31]
+            valid_sheet_name = re.sub(r'[\\/*?:\[\]]', '_', sheet_name)[:31]
             df.to_excel(writer, sheet_name=valid_sheet_name, index=False)
     return output.getvalue()
 
@@ -223,13 +229,13 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     
     styler = styler.applymap(highlight_zero)
     
-    # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
+    # Handle total row: set all cells to have a distinct background
     if total_row_mask.any():
         styler = styler.apply(
-            lambda x: ['background-color: #f0f0f0; color: black' if total_row_mask.loc[x.name] else '' for _ in x],
+            lambda row: ['background-color: #f0f0f0; color: black' if row.name in df_style[df_style['Cluster'] == 'Total'].index else '' for _ in row],
             axis=1
         )
-        # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
+        # Optionally, set 'Cluster' and 'Zone' cells in the total row to have a different style
         styler = styler.applymap(
             lambda x: f'background-color: {cell_bg_color}; color: {font_color}',
             subset=['Cluster', 'Zone']
@@ -277,10 +283,16 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         current_time = extract_timestamp(uploaded_alarm_file.name)
         offline_time = extract_timestamp(uploaded_offline_file.name)
 
-        if current_time is None:
-            st.error("Failed to parse timestamp from the Current Alarms Report file name.")
-        if offline_time is None:
-            st.error("Failed to parse timestamp from the Offline Report file name.")
+        # Display extracted timestamps for debugging
+        if current_time:
+            st.sidebar.write(f"**Alarm Report Timestamp:** {current_time}")
+        else:
+            st.sidebar.error("Failed to parse timestamp from the Current Alarms Report file name.")
+
+        if offline_time:
+            st.sidebar.write(f"**Offline Report Timestamp:** {offline_time}")
+        else:
+            st.sidebar.error("Failed to parse timestamp from the Offline Report file name.")
 
         # Initialize Sidebar Filters
         st.sidebar.header("Filters")
@@ -335,20 +347,21 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
         # Display the Offline Report
         st.markdown("### Offline Report")
-        if offline_time is not None:
+        if offline_time:
             st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         else:
             st.markdown("<small><i>Till time not available</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
 
-        # Apply styling
-        styled_pivot_offline = style_dataframe(filtered_pivot_offline, ['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours'], dark_mode)
+        # Identify duration columns for styling
+        offline_duration_cols = ['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours']
+        styled_pivot_offline = style_dataframe(filtered_pivot_offline, offline_duration_cols, dark_mode)
 
         # Display styled DataFrame
         st.dataframe(styled_pivot_offline)
 
         # Calculate time offline smartly using the offline time
-        if offline_time is not None:
+        if offline_time:
             time_offline_df = calculate_time_offline(offline_df, offline_time)
         else:
             time_offline_df = calculate_time_offline(offline_df, pd.Timestamp.now())
@@ -411,16 +424,19 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             }
             offline_excel_data = to_excel(offline_report_data)
 
+            # Handle download filename safely
+            offline_filename = f"Offline_Report_{offline_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx" if offline_time else "Offline_Report_unknown_time.xlsx"
+
             st.download_button(
                 label="Download Offline Report",
                 data=offline_excel_data,
-                file_name=f"Offline_Report_{offline_time.strftime('%Y-%m-%d_%H-%M-%S') if offline_time else 'unknown_time'}.xlsx",
+                file_name=offline_filename,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
             # Add the current time to the alarm header
             st.markdown(f"### Current Alarms Report")
-            if current_time is not None:
+            if current_time:
                 st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
             else:
                 st.markdown("<small><i>Till time not available</i></small>", unsafe_allow_html=True)
@@ -464,8 +480,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                     
                     # Apply date range filter
                     alarm_dates = pd.to_datetime(filtered_alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
-                    min_date = alarm_dates.min().date()
-                    max_date = alarm_dates.max().date()
+                    min_date = alarm_dates.min().date() if not alarm_dates.isnull().all() else pd.Timestamp.now().date()
+                    max_date = alarm_dates.max().date() if not alarm_dates.isnull().all() else pd.Timestamp.now().date()
                     selected_date_range = st.sidebar.date_input(
                         f"Select Date Range for {alarm_name}",
                         value=(min_date, max_date),
@@ -500,7 +516,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Display each pivot table for the current alarms with styling
             for alarm_name, (pivot, total_count) in alarm_data.items():
                 st.markdown(f"### **{alarm_name}**")
-                if current_time is not None:
+                if current_time:
                     st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
                 else:
                     st.markdown("<small><i>Till time not available</i></small>", unsafe_allow_html=True)
@@ -520,14 +536,15 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 # Create a dictionary with each alarm's pivot table
                 current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
                 current_alarm_excel_data = to_excel(current_alarm_excel_dict)
+                # Handle download filename safely
+                current_alarm_filename = f"Current_Alarms_Report_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx" if current_time else "Current_Alarms_Report_unknown_time.xlsx"
                 st.download_button(
                     label="Download Current Alarms Report",
                     data=current_alarm_excel_data,
-                    file_name=f"Current_Alarms_Report_{current_time.strftime('%Y-%m-%d_%H-%M-%S') if current_time else 'unknown_time'}.xlsx",
+                    file_name=current_alarm_filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             else:
                 st.warning("No current alarm data available for export.")
-
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
