@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
@@ -87,8 +89,6 @@ def create_pivot_table(df, alarm_name):
     
     return pivot, total_alarm_count
 
-import pandas as pd
-
 # Function to create pivot table for offline report
 def create_offline_pivot(df):
     df = df.drop_duplicates()
@@ -129,48 +129,6 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
-    
-    # Replace numeric columns in total_row with empty strings
-    numeric_cols = ['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']
-    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
-    
-    pivot = pd.concat([pivot, total_row], ignore_index=True)
-    
-    total_offline_count = int(pivot['Total'].iloc[-1])
-    
-    last_cluster = None
-    for i in range(len(pivot)):
-        if pivot.at[i, 'Cluster'] == last_cluster:
-            pivot.at[i, 'Cluster'] = ''
-        else:
-            last_cluster = pivot.at[i, 'Cluster']
-    
-    return pivot, total_offline_count
-
-    # Setting empty cells for the '48+' column if the value is zero
-    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace("", "")  # This line ensures that if the value is 0, it stays empty
-
-    return pivot, total_offline_count
-
-
-    
-    # Replace numeric columns in total_row with empty strings
-    numeric_cols = ['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']
-    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
-    
-    pivot = pd.concat([pivot, total_row], ignore_index=True)
-    
-    total_offline_count = int(pivot['Total'].iloc[-1])
-    
-    last_cluster = None
-    for i in range(len(pivot)):
-        if pivot.at[i, 'Cluster'] == last_cluster:
-            pivot.at[i, 'Cluster'] = ''
-        else:
-            last_cluster = pivot.at[i, 'Cluster']
-    
-    return pivot, total_offline_count
-
 # Function to calculate time offline smartly (minutes, hours, or days)
 def calculate_time_offline(df, current_time):
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
@@ -190,17 +148,6 @@ def calculate_time_offline(df, current_time):
     df['Last Online Time'] = df['Last Online Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
 
     return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
-
-
-# Function to extract the file name's timestamp
-def extract_timestamp(file_name):
-    match = re.search(r'\((.*?)\)', file_name)
-    if match:
-        timestamp_str = match.group(1)
-        # Normalize day suffixes and replace underscores with colons for time
-        timestamp_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', timestamp_str).replace('_', ':')
-        return pd.to_datetime(timestamp_str, format='%B %d %Y, %I:%M:%S %p', errors='coerce')
-    return None
 
 # Function to convert multiple DataFrames to Excel with separate sheets
 def to_excel(dfs_dict):
@@ -303,12 +250,15 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
-        # Extract timestamps from file names
-        current_time = extract_timestamp(uploaded_alarm_file.name)
-        offline_time = extract_timestamp(uploaded_offline_file.name)
+        # Get current time in Dhaka timezone
+        current_time = datetime.now(ZoneInfo('Asia/Dhaka'))
+        offline_time = current_time
 
         # Initialize Sidebar Filters
         st.sidebar.header("Filters")
+        
+        # Display current time in the sidebar
+        st.sidebar.markdown(f"**Current Time:** {current_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # Get unique clusters for filtering
         offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
