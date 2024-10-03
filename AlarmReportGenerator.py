@@ -151,10 +151,17 @@ def calculate_time_offline(df, current_time):
 
 # Updated Function to extract the file name's timestamp
 def extract_timestamp(file_name):
+    # Remove the extension
+    file_name_no_ext = re.sub(r'\.[a-zA-Z0-9]+$', '', file_name)
+    
+    # Debugging: Display the filename without extension
+    st.sidebar.write(f"**Filename without extension:** {file_name_no_ext}")
+    
     # First, try to find timestamp inside parentheses
-    match = re.search(r'\((.*?)\)', file_name)
+    match = re.search(r'\((.*?)\)', file_name_no_ext)
     if match:
         timestamp_str = match.group(1)
+        st.sidebar.write(f"**Matched Timestamp (Parentheses):** {timestamp_str}")
     else:
         # Try to find timestamp without parentheses
         # Define month names
@@ -163,24 +170,30 @@ def extract_timestamp(file_name):
             'July', 'August', 'September', 'October', 'November', 'December'
         ])
         # Define pattern allowing spaces or underscores and flexible separators
-        # This pattern looks for the timestamp at the end of the filename
-        pattern = rf'({months}[\s_]*\d+(?:st|nd|rd|th)?[\s_]*\d{{4}},[\s_]*\d+_\d+_\d+_[ap]m)$'
-        match = re.search(pattern, file_name)
+        # Removed the end anchor '$' to allow matching anywhere in the filename
+        pattern = rf'({months}[\s_]*\d+(?:st|nd|rd|th)?[\s_]*\d{{4}},[\s_]*\d+_\d+_\d+_[ap]m)'
+        match = re.search(pattern, file_name_no_ext)
         if match:
             timestamp_str = match.group(1)
+            st.sidebar.write(f"**Matched Timestamp (No Parentheses):** {timestamp_str}")
         else:
+            st.sidebar.error("No timestamp found in the filename.")
             return None  # Could not find timestamp
 
     # Normalize day suffixes and replace underscores with colons for time
     timestamp_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', timestamp_str)
     timestamp_str = timestamp_str.replace('_', ':').replace(',', ', ')
-
+    
     # Remove any multiple spaces
     timestamp_str = re.sub(r'\s+', ' ', timestamp_str)
-
+    
+    # Debugging: Display the normalized timestamp string
+    st.sidebar.write(f"**Normalized Timestamp String:** {timestamp_str}")
+    
     # Parse the timestamp
     parsed_time = pd.to_datetime(timestamp_str, format='%B %d %Y, %I:%M:%S %p', errors='coerce')
     if pd.isna(parsed_time):
+        st.sidebar.error("Failed to parse the timestamp string into a datetime object.")
         return None
     return parsed_time
 
@@ -189,6 +202,7 @@ def to_excel(dfs_dict):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         for sheet_name, df in dfs_dict.items():
+            # Clean sheet name: remove invalid characters and limit to 31 characters
             valid_sheet_name = re.sub(r'[\\/*?:\[\]]', '_', sheet_name)[:31]
             df.to_excel(writer, sheet_name=valid_sheet_name, index=False)
     return output.getvalue()
@@ -283,6 +297,9 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         current_time = extract_timestamp(uploaded_alarm_file.name)
         offline_time = extract_timestamp(uploaded_offline_file.name)
 
+        # Initialize Sidebar Filters
+        st.sidebar.header("Filters")
+
         # Display extracted timestamps for debugging
         if current_time:
             st.sidebar.write(f"**Alarm Report Timestamp:** {current_time}")
@@ -293,9 +310,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             st.sidebar.write(f"**Offline Report Timestamp:** {offline_time}")
         else:
             st.sidebar.error("Failed to parse timestamp from the Offline Report file name.")
-
-        # Initialize Sidebar Filters
-        st.sidebar.header("Filters")
 
         # Get unique clusters for filtering
         offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
@@ -480,31 +494,35 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                     
                     # Apply date range filter
                     alarm_dates = pd.to_datetime(filtered_alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
-                    min_date = alarm_dates.min().date() if not alarm_dates.isnull().all() else pd.Timestamp.now().date()
-                    max_date = alarm_dates.max().date() if not alarm_dates.isnull().all() else pd.Timestamp.now().date()
-                    selected_date_range = st.sidebar.date_input(
-                        f"Select Date Range for {alarm_name}",
-                        value=(min_date, max_date),
-                        min_value=min_date,
-                        max_value=max_date,
-                        key=f"date_{alarm_name}"
-                    )
-                    # Ensure date range is a tuple of two dates
-                    if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
-                        start_date, end_date = selected_date_range
+                    if not alarm_dates.isnull().all():
+                        min_date = alarm_dates.min().date()
+                        max_date = alarm_dates.max().date()
+                        selected_date_range = st.sidebar.date_input(
+                            f"Select Date Range for {alarm_name}",
+                            value=(min_date, max_date),
+                            min_value=min_date,
+                            max_value=max_date,
+                            key=f"date_{alarm_name}"
+                        )
+                        # Ensure date range is a tuple of two dates
+                        if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
+                            start_date, end_date = selected_date_range
+                        else:
+                            start_date, end_date = min_date, max_date
+
+                        filtered_alarm_df['Alarm Time Parsed'] = pd.to_datetime(
+                            filtered_alarm_df['Alarm Time'], 
+                            format='%d/%m/%Y %I:%M:%S %p', 
+                            errors='coerce'
+                        )
+                        filtered_alarm_df = filtered_alarm_df[
+                            (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) &
+                            (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
+                        ]
                     else:
-                        start_date, end_date = min_date, max_date
-
-                    filtered_alarm_df['Alarm Time Parsed'] = pd.to_datetime(
-                        filtered_alarm_df['Alarm Time'], 
-                        format='%d/%m/%Y %I:%M:%S %p', 
-                        errors='coerce'
-                    )
-                    filtered_alarm_df = filtered_alarm_df[
-                        (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) &
-                        (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
-                    ]
-
+                        # If all dates are NaT, do not filter by date
+                        st.sidebar.warning(f"All alarm times for {alarm_name} are invalid. Skipping date filtering.")
+                
                 # Special filter for "DCDB-01 Primary Disconnect"
                 if alarm_name == 'DCDB-01 Primary Disconnect':
                     filtered_alarm_df = filtered_alarm_df[~filtered_alarm_df['RMS Station'].str.startswith('L')]
@@ -546,5 +564,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 )
             else:
                 st.warning("No current alarm data available for export.")
+
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
