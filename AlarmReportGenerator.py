@@ -239,13 +239,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Create a Styler object
     styler = df_style.style
     
-    # Apply background color to cells with 0 or empty values
-    def highlight_zero(val):
-        if val == 0 or val == "":
-            return f'background-color: {cell_bg_color}; color: {font_color}'
-        return ''
     
-    styler = styler.applymap(highlight_zero)
     
     # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
     if total_row_mask.any():
