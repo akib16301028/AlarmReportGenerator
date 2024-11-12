@@ -232,66 +232,50 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Replace 0 with empty strings in duration columns
     df_style[duration_cols] = df_style[duration_cols].replace(0, "")
     
-    # Define background colors
-    cell_bg_color = '#f0f0f0'
-    font_color = 'black' if not is_dark_mode else 'black'
-    
-    # Create a Styler object
-    styler = df_style.style
-    
-    # Apply background color to cells with 0 or empty values
-    def highlight_zero(val):
-        if val == 0 or val == "":
-            return f'background-color: {cell_bg_color}; color: {font_color}'
-        return ''
-    
-    styler = styler.applymap(highlight_zero)
-    
-    # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
-    if total_row_mask.any():
-        styler = styler.apply(
-            lambda x: ['background-color: #f0f0f0; color: black' if total_row_mask.loc[x.name] else '' for _ in x],
-            axis=1
-        )
-        # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
-        styler = styler.applymap(
-            lambda x: f'background-color: {cell_bg_color}; color: {font_color}',
-            subset=['Cluster', 'Zone']
-        )
-    
-    # Optional: Remove borders for a cleaner look
-    styler.set_table_styles(
-        [{
-            'selector': 'th',
-            'props': [('border', '1px solid black')]
-        },
-        {
-            'selector': 'td',
-            'props': [('border', '1px solid black')]
-        }]
+    # Define a neutral background color
+cell_bg_color = '#f0f0f0'
+highlight_color = '#d9ead3'  # Light green for highlighting non-zero values
+
+# Create a Styler object
+styler = df_style.style
+
+# Apply highlight to cells with non-zero values
+def highlight_non_zero(val):
+    if val != 0 and val != "":
+        return f'background-color: {highlight_color}; color: black'
+    return ''
+
+styler = styler.applymap(highlight_non_zero)
+
+# Handle total row: set all cells to default styling except 'Cluster' and 'Zone' if needed
+if total_row_mask.any():
+    styler = styler.apply(
+        lambda x: ['background-color: #f0f0f0; color: black' if total_row_mask.loc[x.name] else '' for _ in x],
+        axis=1
     )
-    
-    return styler
+    # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
+    styler = styler.applymap(
+        lambda x: f'background-color: {cell_bg_color}; color: black',
+        subset=['Cluster', 'Zone']
+    )
 
-# Function to determine if the current theme is dark
-def is_dark_mode():
-    # Streamlit provides theme options that can be accessed via st.get_option
-    # As of Streamlit 1.10, you can access the theme via st.runtime
-    # However, this may vary based on the Streamlit version
-    # Here, we'll use st.session_state as a workaround
+# Optional: Remove borders for a cleaner look
+styler.set_table_styles(
+    [{
+        'selector': 'th',
+        'props': [('border', '1px solid black')]
+    },
+    {
+        'selector': 'td',
+        'props': [('border', '1px solid black')]
+    }]
+)
 
-    # Check if 'theme' is in session_state
-    if 'theme' in st.session_state:
-        theme = st.session_state['theme']
-    else:
-        # Default to light mode if not set
-        theme = 'light'
-
-    # Assume 'dark' indicates dark mode
-    return theme.lower() == 'dark'
+return styler
 
 # Streamlit app
 st.title("StatusMatrix@STL")
+
 
 # File Uploads
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
