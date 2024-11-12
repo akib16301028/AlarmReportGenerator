@@ -232,7 +232,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Replace 0 with empty strings in duration columns
     df_style[duration_cols] = df_style[duration_cols].replace(0, "")
     
-    # Define background colors (set to None for a neutral look)
+   # Define background colors (set to None for a neutral look)
 cell_bg_color = None
 font_color = None
 
@@ -273,6 +273,23 @@ styler.set_table_styles(
 
 return styler
 
+
+# Function to determine if the current theme is dark
+def is_dark_mode():
+    # Streamlit provides theme options that can be accessed via st.get_option
+    # As of Streamlit 1.10, you can access the theme via st.runtime
+    # However, this may vary based on the Streamlit version
+    # Here, we'll use st.session_state as a workaround
+
+    # Check if 'theme' is in session_state
+    if 'theme' in st.session_state:
+        theme = st.session_state['theme']
+    else:
+        # Default to light mode if not set
+        theme = 'light'
+
+    # Assume 'dark' indicates dark mode
+    return theme.lower() == 'dark'
 
 # Streamlit app
 st.title("StatusMatrix@STL")
