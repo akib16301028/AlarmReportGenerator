@@ -148,7 +148,7 @@ def create_offline_pivot(df):
     return pivot, total_offline_count
 
     # Setting empty cells for the '48+' column if the value is zero
-    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace("0", "")  # This line ensures that if the value is 0, it stays empty
+    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace("", "")  # This line ensures that if the value is 0, it stays empty
 
     return pivot, total_offline_count
 
@@ -239,7 +239,11 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Create a Styler object
     styler = df_style.style
     
-   
+    # Apply background color to cells with 0 or empty values
+    def highlight_zero(val):
+        if val == 0 or val == "":
+            return f'background-color: {cell_bg_color}; color: {font_color}'
+        return ''
     
     styler = styler.applymap(highlight_zero)
     
@@ -521,8 +525,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 duration_cols = ['0+', '2+', '4+', '8+']
 
                 # Apply styling
-                styled_pivot = st
-                yle_dataframe(pivot, duration_cols, dark_mode)
+                styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
 
                 # Display styled DataFrame
                 st.dataframe(styled_pivot)
