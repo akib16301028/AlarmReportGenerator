@@ -232,34 +232,34 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Replace 0 with empty strings in duration columns
     df_style[duration_cols] = df_style[duration_cols].replace(0, "")
     
-    # Define a neutral background color
-cell_bg_color = '#f0f0f0'
-highlight_color = '#d9ead3'  # Light green for highlighting non-zero values
+    # Define background colors (set to None for a neutral look)
+cell_bg_color = None
+font_color = None
 
 # Create a Styler object
 styler = df_style.style
 
-# Apply highlight to cells with non-zero values
-def highlight_non_zero(val):
-    if val != 0 and val != "":
-        return f'background-color: {highlight_color}; color: black'
+# Apply neutral background color to cells with 0 or empty values
+def highlight_zero(val):
+    if val == 0 or val == "":
+        return ''
     return ''
 
-styler = styler.applymap(highlight_non_zero)
+styler = styler.applymap(highlight_zero)
 
-# Handle total row: set all cells to default styling except 'Cluster' and 'Zone' if needed
+# Handle total row: keep all cells neutral except for 'Cluster' and 'Zone' if needed
 if total_row_mask.any():
     styler = styler.apply(
-        lambda x: ['background-color: #f0f0f0; color: black' if total_row_mask.loc[x.name] else '' for _ in x],
+        lambda x: ['' if total_row_mask.loc[x.name] else '' for _ in x],
         axis=1
     )
-    # Optionally, you can set the 'Cluster' and 'Zone' cells to have a different style
+    # Optionally, keep 'Cluster' and 'Zone' cells neutral
     styler = styler.applymap(
-        lambda x: f'background-color: {cell_bg_color}; color: black',
+        lambda x: '',
         subset=['Cluster', 'Zone']
     )
 
-# Optional: Remove borders for a cleaner look
+# Optional: Set minimal borders for a cleaner look
 styler.set_table_styles(
     [{
         'selector': 'th',
@@ -273,9 +273,9 @@ styler.set_table_styles(
 
 return styler
 
+
 # Streamlit app
 st.title("StatusMatrix@STL")
-
 
 # File Uploads
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
