@@ -221,7 +221,31 @@ def create_site_wise_log(df, selected_alarm):
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-
+# Function to style DataFrame: fill cells with #f0f0f0 if value is 0 or empty and handle total row
+def style_dataframe(df, duration_cols, is_dark_mode):
+    # Create a copy for styling
+    df_style = df.copy()
+    
+    # Identify the total row based on 'Cluster' column
+    total_row_mask = df_style['Cluster'] == 'Total'
+    
+    # Replace 0 with empty strings in duration columns
+    df_style[duration_cols] = df_style[duration_cols].replace(0, "")
+    
+    # Define background colors
+    cell_bg_color = '#f0f0f0'
+    font_color = 'black' if not is_dark_mode else 'black'
+    
+    # Create a Styler object
+    styler = df_style.style
+    
+    # Apply background color to cells with 0 or empty values
+    def highlight_zero(val):
+        if val == 0 or val == "":
+            return f'background-color: {cell_bg_color}; color: {font_color}'
+        return ''
+    
+    styler = styler.applymap(highlight_zero)
     
     # Handle total row: set all cells to empty except 'Cluster' and 'Zone' if needed
     if total_row_mask.any():
