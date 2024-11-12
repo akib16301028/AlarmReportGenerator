@@ -229,8 +229,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Identify the total row based on 'Cluster' column
     total_row_mask = df_style['Cluster'] == 'Total'
     
-    # Replace 0 with empty strings in duration columns
-    df_style[duration_cols] = df_style[duration_cols].replace(0, "")
+    
     
     # Define background colors
     cell_bg_color = '#f0f0f0'
