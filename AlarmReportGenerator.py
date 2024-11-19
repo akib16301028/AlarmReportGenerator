@@ -1,182 +1,154 @@
 import pandas as pd
 import streamlit as st
-from datetime import datetime
+from io import BytesIO
+import datetime
 
-# Helper Functions
-def create_pivot_table(filtered_df, alarm_name):
-    """
-    Creates a pivot table for a given filtered DataFrame and returns it along with the total count.
-    """
-    try:
-        if filtered_df.empty:
-            return pd.DataFrame(), 0
-        pivot = pd.pivot_table(
-            filtered_df,
-            index=['Cluster'],
-            values=['Alarm Count'],
-            aggfunc='sum',
-            fill_value=0
-        )
-        total_count = filtered_df['Alarm Count'].sum()
-        return pivot, total_count
-    except Exception as e:
-        st.error(f"Error in creating pivot table for {alarm_name}: {e}")
+# Helper function to create pivot table
+def create_pivot_table(df, alarm_name):
+    if df.empty:
         return pd.DataFrame(), 0
 
+    pivot = pd.pivot_table(
+        df,
+        index='Cluster',
+        values='Alarm Count',
+        aggfunc='sum',
+        fill_value=0
+    )
+    total_count = df['Alarm Count'].sum()
+    return pivot, total_count
+
+# Helper function to style the DataFrame
 def style_dataframe(df, duration_cols, dark_mode):
-    """
-    Styles the pivot table DataFrame for better visualization.
-    """
     if df.empty:
         return df
-    # Add specific styling (e.g., color gradients for duration columns)
-    styled = df.style.background_gradient(
-        subset=duration_cols,
-        cmap="coolwarm" if dark_mode else "viridis"
-    )
-    return styled
 
-def to_excel(dataframes_dict):
-    """
-    Converts multiple DataFrames into an Excel file for download.
-    """
-    from io import BytesIO
-    with pd.ExcelWriter(BytesIO(), engine="xlsxwriter") as writer:
-        for sheet_name, df in dataframes_dict.items():
-            df.to_excel(writer, sheet_name=sheet_name)
-        writer.save()
-        return writer.book.getvalue()
+    # Apply custom styles
+    styled_df = df.style
+    for col in duration_cols:
+        if col in df.columns:
+            styled_df = styled_df.background_gradient(subset=col, cmap='Reds' if dark_mode else 'Blues')
+    return styled_df
 
-# Streamlit App
-st.set_page_config(page_title="Alarm Monitoring", layout="wide")
+# Function to export data to Excel
+def to_excel(data_dict):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        for sheet_name, df in data_dict.items():
+            df.to_excel(writer, index=True, sheet_name=sheet_name)
+    return output.getvalue()
 
-st.title("Alarm Monitoring and Reporting Tool")
-
+# Streamlit app starts here
 try:
-    # Sidebar for File Upload
-    uploaded_file = st.sidebar.file_uploader("Upload Alarm Data File (CSV/Excel)", type=["csv", "xlsx"])
-    if not uploaded_file:
-        st.warning("Please upload a valid data file to proceed.")
-        st.stop()
-
-    # Read the uploaded file
-    if uploaded_file.name.endswith(".csv"):
-        alarm_df = pd.read_csv(uploaded_file)
-    else:
-        alarm_df = pd.read_excel(uploaded_file)
-
-    # Validate necessary columns
-    required_columns = ['Alarm Name', 'Alarm Time', 'Cluster', 'RMS Station', 'Alarm Count']
-    if not all(col in alarm_df.columns for col in required_columns):
-        st.error(f"The uploaded file must contain the following columns: {', '.join(required_columns)}")
-        st.stop()
-
-    # Sidebar Filters
-    selected_alarm = st.sidebar.selectbox("Select Alarm", options=["All"] + sorted(alarm_df['Alarm Name'].unique()))
-    selected_offline_cluster = st.sidebar.selectbox(
-        "Select Cluster",
-        options=["All"] + sorted(alarm_df['Cluster'].unique())
+    # Sidebar inputs
+    st.sidebar.title("Filter Options")
+    selected_alarm = st.sidebar.selectbox(
+        "Select Alarm",
+        options=["All", "Mains Fail", "Battery Low", "DCDB-01 Primary Disconnect", "PG Run", "MDB Fault", "Door Open"]
     )
-    
-    dark_mode = st.sidebar.checkbox("Enable Dark Mode", value=False)
+    selected_offline_cluster = st.sidebar.selectbox("Select Cluster", options=["All", "Cluster1", "Cluster2", "Cluster3"])
 
-    # Priority order for alarms
-    priority_order = [
-        'Mains Fail',
-        'Battery Low',
-        'DCDB-01 Primary Disconnect',
-        'PG Run',
-        'MDB Fault',
-        'Door Open'
-    ]
+    # File upload
+    uploaded_file = st.file_uploader("Upload Alarm Data File", type=["csv", "xlsx"])
+    if uploaded_file:
+        # Read the data
+        if uploaded_file.name.endswith('.csv'):
+            alarm_df = pd.read_csv(uploaded_file)
+        else:
+            alarm_df = pd.read_excel(uploaded_file)
 
-    # Separate prioritized and non-prioritized alarms
-    prioritized_alarms = [name for name in priority_order if name in alarm_df['Alarm Name'].unique()]
-    non_prioritized_alarms = [name for name in alarm_df['Alarm Name'].unique() if name not in priority_order]
-    ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
+        # Ensure required columns are present
+        required_columns = ['Alarm Name', 'Cluster', 'Alarm Time', 'Alarm Count', 'RMS Station']
+        if not all(col in alarm_df.columns for col in required_columns):
+            st.error(f"Uploaded file must contain the following columns: {', '.join(required_columns)}")
+        else:
+            # Define the priority order for the alarm names
+            priority_order = [
+                'Mains Fail',
+                'Battery Low',
+                'DCDB-01 Primary Disconnect',
+                'PG Run',
+                'MDB Fault',
+                'Door Open'
+            ]
 
-    # Process Alarms
-    alarm_data = {}
-    for alarm_name in ordered_alarm_names:
-        # Skip unselected alarms
-        if selected_alarm != "All" and alarm_name != selected_alarm:
-            continue
+            # Separate prioritized alarms from the rest
+            prioritized_alarms = [name for name in priority_order if name in alarm_df['Alarm Name'].unique()]
+            non_prioritized_alarms = [name for name in alarm_df['Alarm Name'].unique() if name not in priority_order]
 
-        filtered_alarm_df = alarm_df.copy()
+            # Combine both lists to maintain the desired order
+            ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
 
-        if selected_alarm != "All":
-            filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Alarm Name'] == alarm_name]
-            if selected_offline_cluster != "All":
-                filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Cluster'] == selected_offline_cluster]
+            # Create a dictionary to store all pivot tables for current alarms
+            alarm_data = {}
 
-            # Parse and filter dates
-filtered_alarm_df['Alarm Time Parsed'] = pd.to_datetime(
-    filtered_alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce'
-)
+            # Process alarms based on selection
+            for alarm_name in ordered_alarm_names:
+                if selected_alarm != "All" and alarm_name != selected_alarm:
+                    continue
 
-# Handle empty or invalid dates gracefully
-if filtered_alarm_df['Alarm Time Parsed'].isna().all():
-    st.warning(f"No valid dates found for alarm: {alarm_name}")
-    continue  # Skip to the next alarm if all dates are invalid
+                # Filter the DataFrame
+                filtered_alarm_df = alarm_df.copy()
+                filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Alarm Name'] == alarm_name]
 
-# Drop rows with NaT in parsed dates
-filtered_alarm_df = filtered_alarm_df.dropna(subset=['Alarm Time Parsed'])
+                if selected_offline_cluster != "All":
+                    filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Cluster'] == selected_offline_cluster]
 
-# Define minimum and maximum dates for the filter
-min_date = filtered_alarm_df['Alarm Time Parsed'].min().date()
-max_date = filtered_alarm_df['Alarm Time Parsed'].max().date()
+                # Parse and filter by date range
+                filtered_alarm_df['Alarm Time Parsed'] = pd.to_datetime(
+                    filtered_alarm_df['Alarm Time'], 
+                    format='%d/%m/%Y %I:%M:%S %p', 
+                    errors='coerce'
+                )
+                min_date = filtered_alarm_df['Alarm Time Parsed'].min().date()
+                max_date = filtered_alarm_df['Alarm Time Parsed'].max().date()
 
-# Sidebar for date range input
-selected_date_range = st.sidebar.date_input(
-    f"Date Range for {alarm_name}",
-    value=(min_date, max_date),
-    min_value=min_date,
-    max_value=max_date,
-    key=f"date_{alarm_name}"
-)
+                selected_date_range = st.sidebar.date_input(
+                    f"Select Date Range for {alarm_name}",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date,
+                    key=f"date_{alarm_name}"
+                )
 
-# Ensure date range is a tuple of two dates
-if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
-    start_date, end_date = selected_date_range
-    filtered_alarm_df = filtered_alarm_df[
-        (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) &
-        (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
-    ]
-else:
-    st.error(f"Invalid date range selected for alarm: {alarm_name}")
-            if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
-                start_date, end_date = selected_date_range
-                filtered_alarm_df = filtered_alarm_df[
-                    (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) &
-                    (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
-                ]
+                if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
+                    start_date, end_date = selected_date_range
+                    filtered_alarm_df = filtered_alarm_df[
+                        (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) &
+                        (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
+                    ]
 
-        # Special filter for "DCDB-01 Primary Disconnect"
-        if alarm_name == 'DCDB-01 Primary Disconnect':
-            filtered_alarm_df = filtered_alarm_df[~filtered_alarm_df['RMS Station'].str.startswith('L')]
+                # Special filter for "DCDB-01 Primary Disconnect"
+                if alarm_name == 'DCDB-01 Primary Disconnect':
+                    filtered_alarm_df = filtered_alarm_df[~filtered_alarm_df['RMS Station'].str.startswith('L')]
 
-        # Create pivot table
-        pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
-        alarm_data[alarm_name] = (pivot, total_count)
+                # Create pivot table
+                pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
+                alarm_data[alarm_name] = (pivot, total_count)
 
-    # Display Pivot Tables
-    for alarm_name, (pivot, total_count) in alarm_data.items():
-        st.markdown(f"### **{alarm_name}**")
-        st.markdown(f"**Total Alarm Count:** {total_count}")
-        duration_cols = ['0+', '2+', '4+', '8+']  # Example duration columns
-        styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
-        st.dataframe(styled_pivot)
+            # Display each pivot table
+            for alarm_name, (pivot, total_count) in alarm_data.items():
+                st.markdown(f"### **{alarm_name}**")
+                st.markdown(f"**Alarm Count:** {total_count}")
 
-    # Export Report
-    if alarm_data:
-        excel_data = to_excel({alarm: data[0] for alarm, data in alarm_data.items()})
-        st.download_button(
-            label="Download Current Alarms Report",
-            data=excel_data,
-            file_name=f"Current_Alarms_Report_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+                duration_cols = ['0+', '2+', '4+', '8+']
+                styled_pivot = style_dataframe(pivot, duration_cols, dark_mode=False)
+                st.dataframe(styled_pivot)
+
+            # Export to Excel
+            if alarm_data:
+                current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
+                current_alarm_excel_data = to_excel(current_alarm_excel_dict)
+                st.download_button(
+                    label="Download Current Alarms Report",
+                    data=current_alarm_excel_data,
+                    file_name=f"Current_Alarms_Report_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.warning("No current alarm data available for export.")
     else:
-        st.warning("No data available for export.")
+        st.info("Please upload a file to get started.")
+
 except Exception as e:
-    st.error(f"An error occurred: {e}")
+    st.error(f"An error occurred while processing the files: {e}")
