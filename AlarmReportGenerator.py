@@ -1,7 +1,6 @@
 import pandas as pd
 import streamlit as st
 from io import BytesIO
-import datetime
 
 # Helper function to create pivot table
 def create_pivot_table(df, alarm_name):
@@ -58,7 +57,7 @@ try:
             alarm_df = pd.read_excel(uploaded_file)
 
         # Ensure required columns are present
-        required_columns = ['Alarm Name', 'Cluster', 'Alarm Time', 'Alarm Count', 'RMS Station']
+        required_columns = ['Alarm Name', 'Cluster', 'Alarm Count', 'RMS Station']
         if not all(col in alarm_df.columns for col in required_columns):
             st.error(f"Uploaded file must contain the following columns: {', '.join(required_columns)}")
         else:
@@ -94,30 +93,6 @@ try:
                 if selected_offline_cluster != "All":
                     filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Cluster'] == selected_offline_cluster]
 
-                # Parse and filter by date range
-                filtered_alarm_df['Alarm Time Parsed'] = pd.to_datetime(
-                    filtered_alarm_df['Alarm Time'], 
-                    format='%d/%m/%Y %I:%M:%S %p', 
-                    errors='coerce'
-                )
-                min_date = filtered_alarm_df['Alarm Time Parsed'].min().date()
-                max_date = filtered_alarm_df['Alarm Time Parsed'].max().date()
-
-                selected_date_range = st.sidebar.date_input(
-                    f"Select Date Range for {alarm_name}",
-                    value=(min_date, max_date),
-                    min_value=min_date,
-                    max_value=max_date,
-                    key=f"date_{alarm_name}"
-                )
-
-                if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
-                    start_date, end_date = selected_date_range
-                    filtered_alarm_df = filtered_alarm_df[
-                        (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) &
-                        (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
-                    ]
-
                 # Special filter for "DCDB-01 Primary Disconnect"
                 if alarm_name == 'DCDB-01 Primary Disconnect':
                     filtered_alarm_df = filtered_alarm_df[~filtered_alarm_df['RMS Station'].str.startswith('L')]
@@ -142,7 +117,7 @@ try:
                 st.download_button(
                     label="Download Current Alarms Report",
                     data=current_alarm_excel_data,
-                    file_name=f"Current_Alarms_Report_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
+                    file_name="Current_Alarms_Report.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             else:
