@@ -1,80 +1,70 @@
 import pandas as pd
 import streamlit as st
 
-def load_alarm_data(file):
+# Function to sanitize Duration Slot (Hours)
+def sanitize_duration(df, duration_col='Duration Slot (Hours)', max_duration=24):
+    """
+    Cleans and caps values in the Duration Slot column.
+    """
+    df[duration_col] = pd.to_numeric(df[duration_col], errors='coerce')  # Convert to numeric, NaN for invalid
+    df[duration_col] = df[duration_col].fillna(0)  # Replace NaN with 0
+    df[duration_col] = df[duration_col].clip(upper=max_duration)  # Cap values at max_duration
+    return df
+
+# Function to normalize timestamps
+def normalize_timestamps(df, time_col='Alarm Time', datetime_format='%d/%m/%Y %I:%M:%S %p'):
+    """
+    Ensures that all timestamps are in a consistent format.
+    Invalid timestamps are replaced with NaT.
+    """
+    df[time_col] = pd.to_datetime(df[time_col], format=datetime_format, errors='coerce')  # Parse dates
+    invalid_rows = df[time_col].isna().sum()  # Check for invalid dates
+    if invalid_rows > 0:
+        st.warning(f"Warning: {invalid_rows} invalid timestamps detected and replaced with NaT.")
+    return df
+
+# Main processing function
+def process_alarm_file(file_path):
+    """
+    Main function to process the alarm file.
+    Applies sanitization and timestamp normalization.
+    """
     try:
-        df = pd.read_excel(file)
-        st.write("Alarm data loaded successfully!")
+        # Load Excel file
+        df = pd.read_excel(file_path, sheet_name='RMS Station Current Alarm Repor')
+
+        # Step 1: Sanitize Duration Slot (Hours)
+        df = sanitize_duration(df)
+
+        # Step 2: Normalize Timestamps
+        df = normalize_timestamps(df)
+
+        # Additional processing if required
+        st.success("File processed successfully!")
         return df
+
     except Exception as e:
-        st.error(f"Error loading alarm data: {e}")
-        return pd.DataFrame()
+        st.error(f"An error occurred while processing the file: {e}")
+        return None
 
-def create_pivot_table(df, alarm_name):
-    try:
-        filtered_df = df[df['Alarm Name'] == alarm_name]
-        pivot = pd.pivot_table(
-            filtered_df,
-            values='Count',
-            index='Zone',
-            aggfunc='sum',
-            fill_value=0
-        )
-        total_count = pivot['Count'].sum()
-        return pivot, total_count
-    except Exception as e:
-        st.error(f"Error creating pivot table: {e}")
-        return pd.DataFrame(), 0
+# Streamlit UI
+st.title("Alarm Report Processor")
 
-def to_excel(data):
-    try:
-        output = pd.ExcelWriter('output.xlsx', engine='xlsxwriter')
-        for sheet_name, df in data.items():
-            df.to_excel(output, sheet_name=sheet_name)
-        output.close()
-        st.write("Excel file created successfully!")
-    except Exception as e:
-        st.error(f"Error writing to Excel: {e}")
+uploaded_file = st.file_uploader("Upload Alarm Report", type=["xlsx"])
 
-# Streamlit App
-st.title("Alarm Report Generator")
-
-# File Upload
-uploaded_file = st.file_uploader("Upload Alarm Data", type=["xlsx"])
 if uploaded_file:
-    alarm_df = load_alarm_data(uploaded_file)
-    if not alarm_df.empty:
-        st.write("First 5 rows of Alarm Data:")
-        st.write(alarm_df.head())
+    st.write("Processing file:", uploaded_file.name)
+    processed_df = process_alarm_file(uploaded_file)
 
-        # Debug: Check data types
-        st.write("Data Types:")
-        st.write(alarm_df.dtypes)
+    if processed_df is not None:
+        st.write("Processed Data:")
+        st.dataframe(processed_df)
 
-        # Select Alarm Names
-        alarm_names = alarm_df['Alarm Name'].unique()
-        st.write("Available Alarm Names:", alarm_names)
-
-        # Select Alarm Name for Report
-        selected_alarm = st.selectbox("Select an Alarm Name", alarm_names)
-        if selected_alarm:
-            st.write(f"Generating report for: {selected_alarm}")
-
-            try:
-                pivot_table, total = create_pivot_table(alarm_df, selected_alarm)
-                st.write(f"Pivot Table for {selected_alarm}:")
-                st.write(pivot_table)
-                st.write(f"Total Count: {total}")
-            except Exception as e:
-                st.error(f"Error processing alarm data: {e}")
-
-            # Export to Excel
-            if st.button("Download Report"):
-                try:
-                    excel_data = {'Alarm Report': pivot_table}
-                    to_excel(excel_data)
-                    st.success("Report ready for download!")
-                except Exception as e:
-                    st.error(f"Error generating Excel report: {e}")
-else:
-    st.info("Please upload a valid Excel file.")
+        # Option to download the processed file
+        csv_data = processed_df.to_csv(index=False)
+        st.download_button(
+            label="Download Processed Data",
+            data=csv_data,
+            file_name="Processed_Alarm_Report.csv",
+            mime="text/csv"
+        )
