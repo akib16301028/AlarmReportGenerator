@@ -1,29 +1,7 @@
 import streamlit as st
-import pytz
-from datetime import datetime
-
-# Function to get the current time in Dhaka timezone
-def get_current_time():
-    dhaka_tz = pytz.timezone('Asia/Dhaka')
-    now = datetime.now(dhaka_tz)
-    return now.strftime('%Y-%m-%d %H:%M:%S')
-
-# Add live clock to the left sidebar
-clock_placeholder = st.sidebar.empty()  # Create a placeholder for the clock
-
-# Update the clock every minute
-while True:
-    current_time = get_current_time()  # Get current time in Dhaka
-    clock_placeholder.text(f"Current Time (Dhaka): {current_time}")  # Display the time
-    time.sleep(60)  # Wait for 1 minute before updating the time
-
-
-# Your existing Streamlit code continues here
-st.title("StatusMatrix@STL")
-
-# File Uploads
-uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
-uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
+import pandas as pd
+import re
+from io import BytesIO
 
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
