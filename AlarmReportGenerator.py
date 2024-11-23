@@ -1,21 +1,22 @@
 import streamlit as st
-import pandas as pd
-import re
-from io import BytesIO
-import datetime
-import time
+import pytz
+from datetime import datetime
 
-# Function to display live clock
-def display_live_clock():
-    clock_placeholder = st.sidebar.empty()  # Create an empty container in the sidebar
+# Function to get the current time in Dhaka timezone
+def get_current_time():
+    dhaka_tz = pytz.timezone('Asia/Dhaka')
+    now = datetime.now(dhaka_tz)
+    return now.strftime('%Y-%m-%d %H:%M:%S')
 
-    while True:
-        current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Get the current time
-        clock_placeholder.markdown(f"**Current Time:** {current_time}")  # Display the time in the sidebar
-        time.sleep(1)  # Update the clock every second
+# Add live clock to the left sidebar
+clock_placeholder = st.sidebar.empty()  # Create a placeholder for the clock
 
-# Start live clock
-display_live_clock()
+# Update the clock every minute
+while True:
+    current_time = get_current_time()  # Get current time in Dhaka
+    clock_placeholder.text(f"Current Time (Dhaka): {current_time}")  # Display the time
+    time.sleep(60)  # Wait for 1 minute before updating the time
+
 
 # Your existing Streamlit code continues here
 st.title("StatusMatrix@STL")
