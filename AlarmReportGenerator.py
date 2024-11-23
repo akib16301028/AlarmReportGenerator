@@ -1,3 +1,4 @@
+import streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
@@ -290,7 +291,7 @@ def is_dark_mode():
     return theme.lower() == 'dark'
 
 # Streamlit app
-st.title("alarmreportgenerator")
+st.title("StatusMatrix@STL")
 
 # File Uploads
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
@@ -442,7 +443,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             st.markdown(f"### Current Alarms Report")
             st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
 
-# Define the priority order for the alarm names
+            # Define the priority order for the alarm names
             priority_order = [
                 'Mains Fail',
                 'Battery Low',
@@ -513,7 +514,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 # Create pivot table for the filtered data
                 pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot, total_count)
-# Display each pivot table for the current alarms with styling
+
+            # Display each pivot table for the current alarms with styling
             for alarm_name, (pivot, total_count) in alarm_data.items():
                 st.markdown(f"### **{alarm_name}**")
                 st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
