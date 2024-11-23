@@ -341,8 +341,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Display styled DataFrame
         st.dataframe(styled_pivot_offline)
 
-        # Calculate time offline smartly using the offline time
-        time_offline_df = calculate_time_offline(offline_df, offline_time)
+       
+        
 
         # Create a summary table based on offline duration
         summary_dict = {}
