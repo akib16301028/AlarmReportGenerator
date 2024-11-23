@@ -364,13 +364,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
             alarm_df = alarm_df[~alarm_df['Client'].isnull()]
 
-            # Prepare download for Offline Report
-            offline_report_data = {
-                "Offline Summary": filtered_pivot_offline,
-                "Offline Details": filtered_summary_df
-            }
-            offline_excel_data = to_excel(offline_report_data)
-
+           
             st.download_button(
                 label="Download Offline Report",
                 data=offline_excel_data,
