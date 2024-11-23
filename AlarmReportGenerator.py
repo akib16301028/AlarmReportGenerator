@@ -343,11 +343,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
 
 
-        # Prepare DataFrame for display
-        summary_data = []
-        for duration, sites in summary_dict.items():
-            for site in sites:
-                summary_data.append([duration, site['Site Alias'], site['Cluster'], site['Zone'], site['Last Online Time']])
 
         # Convert to DataFrame
         summary_df_full = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name", "Cluster", "Zone", "Last Online Time"])
