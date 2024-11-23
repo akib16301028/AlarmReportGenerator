@@ -276,9 +276,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
-        # Extract timestamps from file names
-        current_time = extract_timestamp(uploaded_alarm_file.name)
-        offline_time = extract_timestamp(uploaded_offline_file.name)
+        
 
         # Initialize Sidebar Filters
         st.sidebar.header("Filters")
