@@ -341,16 +341,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Display styled DataFrame
         st.dataframe(styled_pivot_offline)
 
-       
-        
 
-        # Create a summary table based on offline duration
-        summary_dict = {}
-        for index, row in time_offline_df.iterrows():
-            duration = row['Offline Duration']
-            if duration not in summary_dict:
-                summary_dict[duration] = []
-            summary_dict[duration].append(row)
 
         # Prepare DataFrame for display
         summary_data = []
