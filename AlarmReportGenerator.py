@@ -2,6 +2,27 @@ import streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
+import datetime
+import time
+
+# Function to display live clock
+def display_live_clock():
+    clock_placeholder = st.sidebar.empty()  # Create an empty container in the sidebar
+
+    while True:
+        current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Get the current time
+        clock_placeholder.markdown(f"**Current Time:** {current_time}")  # Display the time in the sidebar
+        time.sleep(1)  # Update the clock every second
+
+# Start live clock
+display_live_clock()
+
+# Your existing Streamlit code continues here
+st.title("StatusMatrix@STL")
+
+# File Uploads
+uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
+uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
