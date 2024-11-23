@@ -171,36 +171,9 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
-# Function to calculate time offline smartly (minutes, hours, or days)
-def calculate_time_offline(df, current_time):
-    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
-    df['Hours Offline'] = (current_time - df['Last Online Time']).dt.total_seconds() / 3600
-
-    def format_offline_duration(hours):
-        if hours < 1:
-            return f"{int(hours * 60)} minutes"
-        elif hours < 24:
-            return f"{int(hours)} hours"
-        else:
-            return f"{int(hours // 24)} days"
-
-    df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
-
-    # Format 'Last Online Time' to exclude microseconds
-    df['Last Online Time'] = df['Last Online Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-
-    return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
 
 
-# Function to extract the file name's timestamp
-def extract_timestamp(file_name):
-    match = re.search(r'\((.*?)\)', file_name)
-    if match:
-        timestamp_str = match.group(1)
-        # Normalize day suffixes and replace underscores with colons for time
-        timestamp_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', timestamp_str).replace('_', ':')
-        return pd.to_datetime(timestamp_str, format='%B %d %Y, %I:%M:%S %p', errors='coerce')
-    return None
+
 
 # Function to convert multiple DataFrames to Excel with separate sheets
 def to_excel(dfs_dict):
@@ -362,7 +335,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
         # Display the Offline Report
         st.markdown("### Offline Report")
-        st.markdown(f"<small><i>till {offline_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
 
         # Apply styling
@@ -435,13 +407,12 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             st.download_button(
                 label="Download Offline Report",
                 data=offline_excel_data,
-                file_name=f"Offline_Report_{offline_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
+                file_name=f"Offline_Report_{offlineReport}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
             # Add the current time to the alarm header
             st.markdown(f"### Current Alarms Report")
-            st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
 
             # Define the priority order for the alarm names
             priority_order = [
@@ -518,7 +489,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             # Display each pivot table for the current alarms with styling
             for alarm_name, (pivot, total_count) in alarm_data.items():
                 st.markdown(f"### **{alarm_name}**")
-                st.markdown(f"<small><i>till {current_time.strftime('%Y-%m-%d %H:%M:%S')}</i></small>", unsafe_allow_html=True)
                 st.markdown(f"**Alarm Count:** {total_count}")
 
                 # Identify duration columns
@@ -538,7 +508,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 st.download_button(
                     label="Download Current Alarms Report",
                     data=current_alarm_excel_data,
-                    file_name=f"Current_Alarms_Report_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.xlsx",
+                    file_name=f"Current_Alarms_Report.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             else:
