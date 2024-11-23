@@ -344,20 +344,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
 
 
-        # Apply Offline Cluster Filters to Summary
-        if selected_offline_cluster != "All":
-            filtered_summary_df = summary_df_full[summary_df_full['Cluster'] == selected_offline_cluster]
-        else:
-            filtered_summary_df = summary_df_full.copy()
-
-        # Display the Summary of Offline Sites
-        st.markdown("### Summary of Offline Sites")
-        st.markdown(f"**Total Offline Sites:** {filtered_summary_df['Site Name'].nunique()}")
-        
-        # Apply styling to the summary table
-        styled_summary_df = style_dataframe(filtered_summary_df, [], dark_mode)
-        st.dataframe(styled_summary_df)
-
         # === Site-Wise Log Display ===
         if view_site_wise:
             st.markdown("### Site-Wise Log")
