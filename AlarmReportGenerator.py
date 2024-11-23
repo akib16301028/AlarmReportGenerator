@@ -364,14 +364,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
             alarm_df = alarm_df[~alarm_df['Client'].isnull()]
 
-           
-            st.download_button(
-                label="Download Offline Report",
-                data=offline_excel_data,
-                file_name=f"Offline_Report_{offlineReport}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
+ 
             # Add the current time to the alarm header
             st.markdown(f"### Current Alarms Report")
 
