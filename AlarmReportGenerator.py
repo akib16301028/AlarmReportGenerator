@@ -455,6 +455,92 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 st.dataframe(styled_pivot)
 
             # Prepare download for Current Alarms Report only if there is data
+
+# Function to calculate duration in days based on 'Last Online Time'
+def calculate_day_duration(last_online_time):
+    # Dhaka time zone
+    dhaka_tz = pytz.timezone('Asia/Dhaka')
+    current_time = datetime.now(dhaka_tz)
+    
+    # Convert 'Last Online Time' to datetime object
+    if isinstance(last_online_time, str):
+        last_online_time = pd.to_datetime(last_online_time, errors='coerce')
+
+    if pd.notna(last_online_time):
+        # Calculate duration
+        duration = current_time - last_online_time
+        # Convert to days
+        return duration.days
+    return None
+
+# Function to create day-wise duration pivot for offline report
+def create_daywise_duration_pivot(df):
+    # Ensure 'Last Online Time' is parsed correctly
+    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], errors='coerce')
+    
+    # Calculate the day-wise duration for each row
+    df['Days Offline'] = df['Last Online Time'].apply(calculate_day_duration)
+    
+    # Define day bins
+    bins = [0, 1, 2, 3, 5, 7, 14, 30, 60, 1000]
+    labels = ['0-1 days', '1-2 days', '2-3 days', '3-5 days', '5-7 days', '7-14 days', '14-30 days', '30-60 days', '60+ days']
+    
+    # Categorize data into bins
+    df['Day Duration Category'] = pd.cut(df['Days Offline'], bins=bins, labels=labels, right=False)
+    
+    # Create pivot table grouped by 'Cluster' and 'Zone', with day-wise categories as columns
+    pivot = df.groupby(['Cluster', 'Zone', 'Day Duration Category']).agg({
+        'Site Alias': 'nunique'
+    }).reset_index().pivot_table(
+        index=['Cluster', 'Zone'],
+        columns='Day Duration Category',
+        values='Site Alias',
+        aggfunc='sum',
+        fill_value=0
+    ).reset_index()
+
+    # Add Total row
+    pivot['Total'] = pivot.sum(axis=1)
+    
+    # Add total row for each zone/cluster
+    total_row = pivot[['0-1 days', '1-2 days', '2-3 days', '3-5 days', '5-7 days', '7-14 days', '14-30 days', '30-60 days', '60+ days', 'Total']].sum().to_frame().T
+    total_row[['Cluster', 'Zone']] = ['Total', '']
+    pivot = pd.concat([pivot, total_row], ignore_index=True)
+
+    # Remove repeated Cluster names for better readability
+    last_cluster = None
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
+        else:
+            last_cluster = pivot.at[i, 'Cluster']
+
+    return pivot
+
+# Add this to the Streamlit app to display the new day-wise report
+
+if uploaded_offline_file is not None:
+    try:
+        offline_df = pd.read_excel(uploaded_offline_file, header=2)
+
+        # Create day-wise duration pivot
+        daywise_duration_pivot = create_daywise_duration_pivot(offline_df)
+
+        # Display the Day-Wise Duration Report
+        st.markdown("### Day-Wise Duration Report")
+        st.dataframe(daywise_duration_pivot)
+
+        # Optionally, download the day-wise duration pivot
+        daywise_duration_excel_data = to_excel({'DayWise Duration': daywise_duration_pivot})
+        st.download_button(
+            label="Download Day-Wise Duration Report",
+            data=daywise_duration_excel_data,
+            file_name="DayWise_Duration_Report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        st.error(f"An error occurred while processing the offline report: {e}")
             if alarm_data:
                 # Create a dictionary with each alarm's pivot table
                 current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
