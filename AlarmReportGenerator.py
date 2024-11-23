@@ -344,9 +344,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
 
 
-        # Convert to DataFrame
-        summary_df_full = pd.DataFrame(summary_data, columns=["Offline Duration", "Site Name", "Cluster", "Zone", "Last Online Time"])
-
         # Apply Offline Cluster Filters to Summary
         if selected_offline_cluster != "All":
             filtered_summary_df = summary_df_full[summary_df_full['Cluster'] == selected_offline_cluster]
