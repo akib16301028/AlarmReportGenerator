@@ -316,8 +316,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 # Identify duration columns
                 duration_cols = ['0+', '2+', '4+', '8+']
 
-                # Apply styling
-                styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
 
                 # Display styled DataFrame
                 st.dataframe(styled_pivot)
