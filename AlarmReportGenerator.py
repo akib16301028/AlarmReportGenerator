@@ -137,21 +137,7 @@ def create_site_wise_log(df, selected_alarm):
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
-# Function to style DataFrame
-def style_dataframe(df, duration_cols, is_dark_mode):
-    header_bg_color = '#4CAF50'  # Green header background
-    header_font_color = 'white'  # White text for headers
-    alt_row_color = '#f9f9f9'
-    font_color = 'black'
 
-    styler = df.style.set_table_styles(
-        [
-            {'selector': 'th', 'props': [('background-color', header_bg_color), ('color', header_font_color), ('font-weight', 'bold'), ('border', '1px solid black')]},
-            {'selector': 'td', 'props': [('border', '1px solid black')]}
-        ]
-    ).highlight_max(axis=0, color='lightblue').set_properties(subset=pd.IndexSlice[:, :], **{'text-align': 'center'})
-
-    return styler
 
 # Streamlit app
 st.title("StatusMatrix@STL")
