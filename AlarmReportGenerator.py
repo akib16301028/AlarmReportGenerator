@@ -191,10 +191,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 index=0
             )
 
-        # Determine if dark mode is active
-        # Note: Streamlit does not provide a direct method to detect theme,
-        # so this function is a placeholder and may need adjustment based on Streamlit version
-        dark_mode = is_dark_mode()
+       
 
         # Process the Offline Report
         pivot_offline, total_offline_count = create_offline_pivot(offline_df)
