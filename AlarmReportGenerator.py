@@ -178,14 +178,36 @@ def calculate_duration(df):
     # Convert 'Last Online Time' to datetime format
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
     
-    # Calculate the duration in days
-    df['Duration'] = (current_time - df['Last Online Time']).dt.days
+    # Calculate the duration in seconds first
+    df['Duration (seconds)'] = (current_time - df['Last Online Time']).dt.total_seconds()
     
     # Set negative durations to 0
-    df['Duration'] = df['Duration'].apply(lambda x: max(x, 0))  # Ensure negative durations are set to 0
+    df['Duration (seconds)'] = df['Duration (seconds)'].apply(lambda x: max(x, 0))
+    
+    # Now calculate and display the duration
+    def format_duration(seconds):
+        # If the duration is more than or equal to one day (86400 seconds), show in days
+        if seconds >= 86400:
+            days = seconds // 86400
+            return f"{int(days)} days"
+        # If the duration is less than a day but more than or equal to one hour, show in hours
+        elif seconds >= 3600:
+            hours = seconds // 3600
+            return f"{int(hours)} hours"
+        # If the duration is less than an hour, show in minutes
+        elif seconds >= 60:
+            minutes = seconds // 60
+            return f"{int(minutes)} minutes"
+        # If less than a minute, show in seconds
+        else:
+            return f"{int(seconds)} seconds"
+
+    # Apply the formatting function to the 'Duration (seconds)' column
+    df['Duration'] = df['Duration (seconds)'].apply(format_duration)
     
     # Return the relevant columns with the updated Duration
     return df[['Site Alias', 'Zone', 'Cluster', 'Duration']]
+
 
 
 
