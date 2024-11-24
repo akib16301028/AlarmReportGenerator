@@ -71,7 +71,7 @@ def create_pivot_table(df, alarm_name):
     total_row[['Cluster', 'Zone']] = ['Total', '']
     
     # Replace numeric columns in total_row with empty strings
-    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "0").astype(str)
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
