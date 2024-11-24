@@ -3,6 +3,8 @@ import pandas as pd
 import re
 from io import BytesIO
 
+
+
 # Function to extract client name from Site Alias
 def extract_client(site_alias):
     match = re.search(r'\((.*?)\)', site_alias)
@@ -171,8 +173,38 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
+from datetime import datetime
 
+# Function to create Offline Summary Table
+def create_offline_summary(df):
+    # Ensure 'Last Online Time' is in datetime format
+    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
+    
+    # Current time
+    current_time = datetime.now()
+    
+    # Calculate duration in days
+    df['Duration'] = (current_time - df['Last Online Time']).dt.days
+    
+    # Create the summary table
+    summary_table = df[['Site Alias', 'Zone', 'Cluster', 'Duration']].copy()
+    summary_table = summary_table.sort_values(by='Duration', ascending=False)
+    
+    return summary_table
 
+# Inside the Streamlit App, after displaying the Offline Report
+if uploaded_offline_file is not None:
+    try:
+        # Create Offline Summary Table
+        offline_summary_table = create_offline_summary(offline_df)
+
+        # Display Offline Summary Table
+        st.markdown("### Offline Summary Table")
+        st.markdown("**Duration** is calculated as the number of days since the last online time.")
+        st.dataframe(offline_summary_table)
+
+    except Exception as e:
+        st.error(f"An error occurred while creating the Offline Summary Table: {e}")
 
 
 # Function to convert multiple DataFrames to Excel with separate sheets
