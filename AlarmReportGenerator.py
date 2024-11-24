@@ -219,9 +219,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             st.markdown("### Site-Wise Log")
             if site_wise_alarms != "All":
                 site_wise_log_df = create_site_wise_log(alarm_df, site_wise_alarms)
-                # Apply styling if needed
-                styled_site_wise_log = style_dataframe(site_wise_log_df, [], dark_mode)
-                st.dataframe(styled_site_wise_log)
+               
             else:
                 st.info("No specific alarm selected for Site-Wise Log.")
 
