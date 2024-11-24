@@ -214,7 +214,7 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     
     # Apply background color to cells with 0 or empty values
     def highlight_zero(val):
-        if val == 0 or val == "":
+        if val != 0 :
             return f'background-color: {cell_bg_color}; color: {font_color}'
         return ''
     
