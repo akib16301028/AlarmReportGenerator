@@ -77,13 +77,7 @@ def create_pivot_table(df, alarm_name):
     
     total_alarm_count = pivot['Total'].iloc[-1]
     
-    # Remove repeated Cluster names for better readability
-    last_cluster = None
-    for i in range(len(pivot)):
-        if pivot.at[i, 'Cluster'] == last_cluster:
-            pivot.at[i, 'Cluster'] = ''
-        else:
-            last_cluster = pivot.at[i, 'Cluster']
+    
     
     return pivot, total_alarm_count
 
