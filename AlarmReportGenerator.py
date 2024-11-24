@@ -209,9 +209,9 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     # Create a Styler object
     styler = df_style.style
     
-    # Apply background color to cells with 0 or empty values
+    # Apply background color to cells with non zero 
     def highlight_zero(val):
-        if val == 0:
+        if val != 0:
             return f'background-color: {cell_bg_color}; color: {font_color}'
         return ''
     
