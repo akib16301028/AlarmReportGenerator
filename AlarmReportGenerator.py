@@ -317,9 +317,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 duration_cols = ['0+', '2+', '4+', '8+']
 
 
-                # Display styled DataFrame
-                st.dataframe(styled_pivot)
-
             # Prepare download for Current Alarms Report only if there is data
             if alarm_data:
                 # Create a dictionary with each alarm's pivot table
