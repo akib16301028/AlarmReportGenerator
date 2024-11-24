@@ -114,7 +114,7 @@ def create_offline_pivot(df):
     
     # Replace numeric columns in total_row with empty strings
     numeric_cols = ['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']
-    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "0").astype(str)
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
@@ -132,7 +132,7 @@ def create_offline_pivot(df):
     
     # Replace numeric columns in total_row with empty strings
     numeric_cols = ['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']
-    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "0").astype(str)
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
@@ -148,7 +148,7 @@ def create_offline_pivot(df):
     return pivot, total_offline_count
 
     # Setting empty cells for the '48+' column if the value is zero
-    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace("", "")  # This line ensures that if the value is 0, it stays empty
+    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace("", "0")  # This line ensures that if the value is 0, it stays empty
 
     return pivot, total_offline_count
 
@@ -156,7 +156,7 @@ def create_offline_pivot(df):
     
     # Replace numeric columns in total_row with empty strings
     numeric_cols = ['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']
-    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "").astype(str)
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "0").astype(str)
     
     pivot = pd.concat([pivot, total_row], ignore_index=True)
     
