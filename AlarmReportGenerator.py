@@ -466,15 +466,10 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot, total_count)
 
-           # Display each pivot table for the current alarms with dynamically extracted text from the file
-for alarm_name, (pivot, total_count) in alarm_data.items():
-    # Extract additional relevant information from the alarm report
-    alarm_info = alarm_df[alarm_df['Alarm Name'] == alarm_name].iloc[0]  # Get the first match for the alarm
-    additional_text = f"Alarm Name: {alarm_info['Alarm Name']} | Site: {alarm_info['Site Alias']} | Cluster: {alarm_info['Cluster']} | Zone: {alarm_info['Zone']}"
-
-    st.markdown(f"### **{alarm_name}**")
-    st.markdown(f"**Details:** {additional_text}")
-    st.markdown(f"**Alarm Count:** {total_count}")
+          # Display each pivot table for the current alarms with styling
+            for alarm_name, (pivot, total_count) in alarm_data.items():
+                st.markdown(f"### **{alarm_name}**")
+                st.markdown(f"**Alarm Count:** {total_count}")
 
     # Identify duration columns
     duration_cols = ['0+', '2+', '4+', '8+']
