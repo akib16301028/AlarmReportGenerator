@@ -482,11 +482,11 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 # Proceed with your logic to process and display alarms
                 # ...
     
-                except Exception as e:
+         except Exception as e:
                 # Handle exceptions here
                 st.error(f"An error occurred while processing the Alarm Report: {e}")
                 
-                finally:
+            finally:
                 # Optional: Any cleanup code can go here, if needed
                 pass
 
