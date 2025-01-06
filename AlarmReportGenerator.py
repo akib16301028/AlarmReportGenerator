@@ -173,18 +173,34 @@ def create_offline_pivot(df):
     return pivot, total_offline_count
 
 # Function to calculate duration for Offline Summary in days
+# Function to calculate the duration and display it in appropriate units (days, hours, minutes, or seconds)
 def calculate_duration(df):
     current_time = datetime.now()
-    
-    # Convert 'Last Online Time' to datetime
+
+    # Convert 'Last Online Time' to datetime format
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
-    
-    # Calculate the duration in days (including fractions of a day)
-    df['Duration'] = abs((current_time - df['Last Online Time']).dt.total_seconds()) / 86400  # 86400 seconds = 1 day
-    
-    # Format the duration as a string in days
-    df['Duration'] = df['Duration'].apply(lambda x: f"{round(x, 2)} days")
-    
+
+    # Calculate the duration in seconds
+    df['Duration_in_seconds'] = (current_time - df['Last Online Time']).dt.total_seconds()
+
+    # Function to convert seconds to days, hours, minutes, or seconds
+    def convert_duration(seconds):
+        if seconds >= 86400:  # 1 day = 86400 seconds
+            return f"{seconds / 86400:.2f} days"
+        elif seconds >= 3600:  # 1 hour = 3600 seconds
+            return f"{seconds / 3600:.2f} hours"
+        elif seconds >= 60:  # 1 minute = 60 seconds
+            return f"{seconds / 60:.2f} minutes"
+        else:
+            return f"{seconds:.2f} seconds"
+
+    # Apply the conversion function to the 'Duration_in_seconds' column
+    df['Duration'] = df['Duration_in_seconds'].apply(convert_duration)
+
+    # Drop the 'Duration_in_seconds' column as it is no longer needed
+    df = df.drop(columns=['Duration_in_seconds'])
+
+    # Return the final dataframe with 'Site Alias', 'Zone', 'Cluster', and the 'Duration'
     return df[['Site Alias', 'Zone', 'Cluster', 'Duration']]
 
 
