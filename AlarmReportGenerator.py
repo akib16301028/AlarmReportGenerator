@@ -172,19 +172,12 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
+# Function to calculate duration for Offline Summary
 def calculate_duration(df):
-    # Calculate the duration between End Time and Start Time
-    df['Duration'] = pd.to_datetime(df['End Time']) - pd.to_datetime(df['Start Time'])
-
-    # Convert the duration to minutes
-    df['Duration (Minutes)'] = df['Duration'].dt.total_seconds() / 60  # Converts to minutes
-
-    # Display the duration in minutes if it's less than 1 day (1440 minutes)
-    df['Duration Display'] = df['Duration'].apply(
-        lambda x: f"{int(x.total_seconds() // 60)} min" if x < pd.Timedelta(days=1) else f"{x.days} day(s)"
-    )
-    
-    return df
+    current_time = datetime.now()
+    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
+    df['Duration'] = (current_time - df['Last Online Time']).dt.days
+    return df[['Site Alias', 'Zone', 'Cluster', 'Duration']]
 
 
 # Function to convert multiple DataFrames to Excel with separate sheets
