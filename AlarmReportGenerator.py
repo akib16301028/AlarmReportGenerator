@@ -180,11 +180,11 @@ def calculate_duration(df):
     # Convert 'Last Online Time' to datetime
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
     
-    # Calculate the duration in days
-    df['Duration'] = (current_time - df['Last Online Time']).dt.total_seconds() / 60  # Convert to minutes
+    # Calculate the duration in seconds
+    df['Duration'] = (current_time - df['Last Online Time']).dt.total_seconds()
     
-    # If the duration is less than 1 day, show the duration in minutes instead of days
-    df['Duration'] = df['Duration'].apply(lambda x: x if x >= 1440 else round(x, 2))  # 1440 minutes in a day
+    # If duration is greater than or equal to 1 day (1440 minutes), show in days
+    df['Duration'] = df['Duration'].apply(lambda x: round(x / (60 * 60 * 24), 2) if x >= 86400 else round(x / (60 * 60), 2))  # 86400 seconds = 1 day, 3600 seconds = 1 hour
     
     return df[['Site Alias', 'Zone', 'Cluster', 'Duration']]
 
