@@ -173,8 +173,7 @@ def create_offline_pivot(df):
     return pivot, total_offline_count
 
 # Function to calculate time offline smartly (minutes, hours, or days)
-def calculate_duration(df):
-    current_time = datetime.now()
+def calculate_time_offline(df, current_time):
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
     df['Hours Offline'] = (current_time - df['Last Online Time']).dt.total_seconds() / 3600
 
@@ -189,6 +188,7 @@ def calculate_duration(df):
     df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
 
     return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
+
 
 
     # Apply the conversion function to the 'Duration_in_seconds' column
