@@ -467,9 +467,16 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 alarm_data[alarm_name] = (pivot, total_count)
 
             # Display each pivot table for the current alarms with styling
+            # After reading the alarm dataframe from the uploaded file:
+alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
+
+# Extract the value from the second row, first column
+additional_header_info = alarm_df.iloc[1, 0]  # This will get the value from row 2, column 1
+
             for alarm_name, (pivot, total_count) in alarm_data.items():
                 st.markdown(f"### **{alarm_name}**")
                 st.markdown(f"**Alarm Count:** {total_count}")
+                st.markdown(f"#### {additional_header_info}")
 
                 # Identify duration columns
                 duration_cols = ['0+', '2+', '4+', '8+']
