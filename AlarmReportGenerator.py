@@ -470,13 +470,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 for alarm_name, (pivot, total_count) in alarm_data.items():
     st.markdown(f"### **{alarm_name}**")
     st.markdown(f"**Alarm Count:** {total_count}")
-    
-    # Extracting the line from the uploaded file, row 2 (index 1 since Python is zero-based)
-    if len(uploaded_file_df) > 1:
-        additional_info = uploaded_file_df.iloc[1].to_string(index=False)
-        st.markdown(f"**Additional Info:** {additional_info}")
-    else:
-        st.markdown("**Additional Info:** Not available")
 
     # Identify duration columns
     duration_cols = ['0+', '2+', '4+', '8+']
