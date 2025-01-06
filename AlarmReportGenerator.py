@@ -172,29 +172,18 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
-# Function to calculate duration for Offline Summary
+# Function to calculate duration for Offline Summary in days
 def calculate_duration(df):
     current_time = datetime.now()
     
     # Convert 'Last Online Time' to datetime
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
     
-    # Calculate the duration in seconds and take absolute value (to avoid negative durations)
-    df['Duration'] = abs((current_time - df['Last Online Time']).dt.total_seconds())
+    # Calculate the duration in days (including fractions of a day)
+    df['Duration'] = abs((current_time - df['Last Online Time']).dt.total_seconds()) / 86400  # 86400 seconds = 1 day
     
-    # Apply conditional logic for formatting the duration
-    def format_duration(seconds):
-        if seconds >= 86400:  # 86400 seconds = 1 day
-            return f"{round(seconds / 86400, 2)} days"  # Convert to days
-        elif seconds >= 3600:  # 3600 seconds = 1 hour
-            return f"{round(seconds / 3600, 2)} hours"  # Convert to hours
-        elif seconds >= 60:  # 60 seconds = 1 minute
-            return f"{round(seconds / 60, 2)} minutes"  # Convert to minutes
-        else:
-            return f"{round(seconds, 2)} seconds"  # Less than a minute, show in seconds
-    
-    # Apply the formatting function
-    df['Duration'] = df['Duration'].apply(format_duration)
+    # Format the duration as a string in days
+    df['Duration'] = df['Duration'].apply(lambda x: f"{round(x, 2)} days")
     
     return df[['Site Alias', 'Zone', 'Cluster', 'Duration']]
 
