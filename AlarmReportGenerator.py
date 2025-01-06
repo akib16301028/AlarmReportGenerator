@@ -172,27 +172,23 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
-# Function to calculate duration for Offline Summary in days
-# Function to calculate the duration and display it in appropriate units (days, hours, minutes, or seconds)
-def calculate_duration(df):
-    current_time = datetime.now()
+# Function to calculate time offline smartly (minutes, hours, or days)
+def calculate_duration(df, current_time):
+    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
+    df['Hours Offline'] = (current_time - df['Last Online Time']).dt.total_seconds() / 3600
 
-    # Convert 'Last Online Time' to datetime format
-    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
-
-    # Calculate the duration in seconds
-    df['Duration_in_seconds'] = (current_time - df['Last Online Time']).dt.total_seconds()
-
-    # Function to convert seconds to days, hours, minutes, or seconds
-    def convert_duration(seconds):
-        if seconds >= 86400:  # 1 day = 86400 seconds
-            return f"{seconds / 86400:.2f} days"
-        elif seconds >= 3600:  # 1 hour = 3600 seconds
-            return f"{seconds / 3600:.2f} hours"
-        elif seconds >= 60:  # 1 minute = 60 seconds
-            return f"{seconds / 60:.2f} minutes"
+    def format_offline_duration(hours):
+        if hours < 1:
+            return f"{int(hours * 60)} minutes"
+        elif hours < 24:
+            return f"{int(hours)} hours"
         else:
-            return f"{seconds:.2f} seconds"
+            return f"{int(hours // 24)} days"
+
+    df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
+
+    return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
+
 
     # Apply the conversion function to the 'Duration_in_seconds' column
     df['Duration'] = df['Duration_in_seconds'].apply(convert_duration)
