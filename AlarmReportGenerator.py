@@ -1,4 +1,4 @@
-import streamlit as st
+    import streamlit as st
 import pandas as pd
 import re
 from datetime import datetime
@@ -466,29 +466,29 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot, total_count)
 
-            # Display each pivot table for the current alarms with styling
-            try:
-    # Your code that may raise an exception
-    alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
+                # Display each pivot table for the current alarms with styling
+                try:
+                # Your code that may raise an exception
+                alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
 
-    # Extract the value from the second row, first column (this will be the new line to add under the header)
-    additional_header_info = alarm_df.iloc[1, 0]  # Extracts value from row 2, column 1
-
-    # Display the value under the current alarms report heading
-    st.markdown(f"### Current Alarms Report")
+                # Extract the value from the second row, first column (this will be the new line to add under the header)
+                additional_header_info = alarm_df.iloc[1, 0]  # Extracts value from row 2, column 1
+                
+                # Display the value under the current alarms report heading
+                st.markdown(f"### Current Alarms Report")
                 st.markdown(f"**Alarm Count:** {total_count}")
-    st.markdown(f"#### {additional_header_info}")  # Display the additional header info
+                st.markdown(f"#### {additional_header_info}")  # Display the additional header info
 
-    # Proceed with your logic to process and display alarms
-    # ...
+                # Proceed with your logic to process and display alarms
+                # ...
     
-except Exception as e:
-    # Handle exceptions here
-    st.error(f"An error occurred while processing the Alarm Report: {e}")
-
-finally:
-    # Optional: Any cleanup code can go here, if needed
-    pass
+                except Exception as e:
+                # Handle exceptions here
+                st.error(f"An error occurred while processing the Alarm Report: {e}")
+                
+                finally:
+                # Optional: Any cleanup code can go here, if needed
+                pass
 
                 # Identify duration columns
                 duration_cols = ['0+', '2+', '4+', '8+']
