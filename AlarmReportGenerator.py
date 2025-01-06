@@ -179,17 +179,19 @@ def calculate_duration(df):
     # Convert 'Last Online Time' to datetime
     df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
     
-    # Calculate the duration in seconds (absolute value to avoid negative durations)
-    df['Duration'] = (current_time - df['Last Online Time']).dt.total_seconds().abs()
+    # Calculate the duration in seconds (this will cover all cases)
+    df['Duration'] = (current_time - df['Last Online Time']).dt.total_seconds()
     
     # Apply conditional logic for formatting the duration
     def format_duration(seconds):
         if seconds >= 86400:  # 86400 seconds = 1 day
-            return f"{round(seconds / (60 * 60 * 24), 2)} days"
+            return f"{round(seconds / 86400, 2)} days"  # Convert to days
         elif seconds >= 3600:  # 3600 seconds = 1 hour
-            return f"{round(seconds / 3600, 2)} hours"
-        else:  # Less than 1 hour
-            return f"{round(seconds / 60, 2)} minutes"
+            return f"{round(seconds / 3600, 2)} hours"  # Convert to hours
+        elif seconds >= 60:  # 60 seconds = 1 minute
+            return f"{round(seconds / 60, 2)} minutes"  # Convert to minutes
+        else:
+            return f"{round(seconds, 2)} seconds"  # Less than a minute, show in seconds
     
     # Apply the formatting function
     df['Duration'] = df['Duration'].apply(format_duration)
