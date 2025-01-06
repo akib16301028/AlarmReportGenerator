@@ -193,7 +193,22 @@ def calculate_duration(df):
 
     return df_filtered[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
 
-
+    def show_offline_site_log(file):
+        # Read the uploaded file, skipping the first row (assuming row 2 is where headers start)
+        df = pd.read_excel(file, header=1)  # Skip the first row, set header to row 2
+        
+        # Select the necessary columns to display
+        columns_to_display = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
+        
+        # Check if the necessary columns exist in the dataframe
+        if all(col in df.columns for col in columns_to_display):
+            # Filter the dataframe to only show the required columns
+            df = df[columns_to_display]
+            
+            # Display the dataframe (you can return this in a template for a web app)
+            return df
+        else:
+            return "Required columns are missing in the uploaded file."
 
     # Apply the conversion function to the 'Duration_in_seconds' column
     df['Duration'] = df['Duration_in_seconds'].apply(convert_duration)
