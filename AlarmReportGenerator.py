@@ -380,7 +380,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         st.dataframe(styled_pivot_offline)
 
         # Generate Offline Summary Table
-        st.markdown("### Offline Summary Table")
+        st.markdown("###Long Time Offline Sites")
         offline_summary_df = calculate_duration(offline_df)
         st.dataframe(offline_summary_df)
 
