@@ -466,26 +466,33 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot, total_count)
 
-            # Display each pivot table for the current alarms with styling
-for alarm_name, (pivot, total_count) in alarm_data.items():
-    st.markdown(f"### **{alarm_name}**")
-    st.markdown(f"**Alarm Count:** {total_count}")
-    
-    # Extracting the line from the uploaded file, row 2 (index 1 since Python is zero-based)
-    if len(uploaded_file_df) > 1:
-        additional_info = uploaded_file_df.iloc[1].to_string(index=False)
-        st.markdown(f"**Additional Info:** {additional_info}")
-    else:
-        st.markdown("**Additional Info:** Not available")
+            try:
+    # Iterate over each alarm's data
+    for alarm_name, (pivot, total_count) in alarm_data.items():
+        # Display alarm name and count
+        st.markdown(f"### **{alarm_name}**")
+        st.markdown(f"**Alarm Count:** {total_count}")
 
-    # Identify duration columns
-    duration_cols = ['0+', '2+', '4+', '8+']
+        # Add a new line from row 2 of the uploaded file
+        try:
+            # Assuming `uploaded_data` is a DataFrame containing the uploaded file's data
+            row_2_content = uploaded_data.iloc[1].to_dict()
+            st.markdown(f"**Additional Info:** {row_2_content}")
+        except Exception as e:
+            st.markdown("**Additional Info:** Could not fetch row 2 content.")
+            print(f"Error accessing row 2: {e}")
 
-    # Apply styling
-    styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
+        # Identify duration columns
+        duration_cols = ['0+', '2+', '4+', '8+']
 
-    # Display styled DataFrame
-    st.dataframe(styled_pivot)
+        # Apply styling
+        styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
+
+        # Display styled DataFrame
+        st.dataframe(styled_pivot)
+
+except Exception as main_error:
+    print(f"An error occurred during alarm data processing: {main_error}")
 
 
             # Prepare download for Current Alarms Report only if there is data
