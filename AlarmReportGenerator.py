@@ -466,50 +466,126 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot, total_count)
 
-            # Display each pivot table for the current alarms with styling
-            try:
-                # Your code that might raise an exception
-                alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
-                # Extract the value from the second row, first column (this will be the new line to add under the header)
-                additional_header_info = alarm_df.iloc[1, 0]  # Extracts value from row 2, column 1
-                # Display the value under the current alarms report heading
-                st.markdown(f"### Current Alarms Report")
-                st.markdown(f"#### {additional_header_info}")  # Display the additional header info
-            except Exception as e:
-                st.error(f"An error occurred while processing the Alarm Report: {e}")
-                                # Identify duration columns
-                duration_cols = ['0+', '2+', '4+', '8+']
+try:
+    # Read the uploaded Excel file for the alarms data
+    alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
 
-                # Apply styling
-                styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
+    # Extract the additional header line from the second row, first column (row 2, column 1)
+    additional_header_info = alarm_df.iloc[1, 0]  # Extracts value from row 2, column 1
 
-                # Display styled DataFrame
-                st.dataframe(styled_pivot)
+    # Display the "Current Alarms Report" header
+    st.markdown(f"### Current Alarms Report")
+    
+    # Add the extracted additional line under the main header
+    st.markdown(f"#### {additional_header_info}")  # Show the additional information from the Excel file
 
-            finally:
-                pass
+    # Define the priority order for the alarm names
+    priority_order = [
+        'Mains Fail',
+        'Battery Low',
+        'DCDB-01 Primary Disconnect',
+        'PG Run',
+        'MDB Fault',
+        'Door Open'
+    ]
 
-                # Identify duration columns
-                duration_cols = ['0+', '2+', '4+', '8+']
+    # Get alarm names from the file and separate them into prioritized and non-prioritized
+    alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
+    prioritized_alarms = [name for name in priority_order if name in alarm_names]
+    non_prioritized_alarms = [name for name in alarm_names if name not in priority_order]
 
-                # Apply styling
-                styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
+    # Combine both lists to maintain the desired order
+    ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
 
-                # Display styled DataFrame
-                st.dataframe(styled_pivot)
+    # Dictionary to store all pivot tables for current alarms
+    alarm_data = {}
 
-            # Prepare download for Current Alarms Report only if there is data
-            if alarm_data:
-                # Create a dictionary with each alarm's pivot table
-                current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
-                current_alarm_excel_data = to_excel(current_alarm_excel_dict)
-                st.download_button(
-                    label="Download Current Alarms Report",
-                    data=current_alarm_excel_data,
-                    file_name=f"Current_Alarms_Report.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+    # Process alarms based on selection
+    for alarm_name in ordered_alarm_names:
+        # Skip alarms if a specific alarm is selected and it's not the current one
+        if selected_alarm != "All" and alarm_name != selected_alarm:
+            continue
+
+        # Initialize the filter criteria
+        filtered_alarm_df = alarm_df.copy()
+
+        if selected_alarm != "All":
+            # Filter by selected alarm
+            filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Alarm Name'] == alarm_name]
+            
+            # Apply cluster filter
+            if selected_offline_cluster != "All":
+                filtered_alarm_df = filtered_alarm_df[filtered_alarm_df['Cluster'] == selected_offline_cluster]
+            
+            # Apply date range filter
+            alarm_dates = pd.to_datetime(filtered_alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
+            min_date = alarm_dates.min().date()
+            max_date = alarm_dates.max().date()
+            selected_date_range = st.sidebar.date_input(
+                f"Select Date Range for {alarm_name}",
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date,
+                key=f"date_{alarm_name}"
+            )
+            # Ensure date range is a tuple of two dates
+            if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
+                start_date, end_date = selected_date_range
             else:
-                st.warning("No current alarm data available for export.")
-    except Exception as e:
-        st.error(f"An error occurred while processing the files: {e}")
+                start_date, end_date = min_date, max_date
+
+            filtered_alarm_df['Alarm Time Parsed'] = pd.to_datetime(
+                filtered_alarm_df['Alarm Time'], 
+                format='%d/%m/%Y %I:%M:%S %p', 
+                errors='coerce'
+            )
+            filtered_alarm_df = filtered_alarm_df[
+                (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) & 
+                (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
+            ]
+
+        # Special filter for "DCDB-01 Primary Disconnect"
+        if alarm_name == 'DCDB-01 Primary Disconnect':
+            filtered_alarm_df = filtered_alarm_df[~filtered_alarm_df['RMS Station'].str.startswith('L')]
+
+        # Create pivot table for the filtered data
+        pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
+        alarm_data[alarm_name] = (pivot, total_count)
+
+    # Display each pivot table for the current alarms with styling
+    for alarm_name, (pivot, total_count) in alarm_data.items():
+        st.markdown(f"### **{alarm_name}**")
+        st.markdown(f"**Alarm Count:** {total_count}")
+
+        # Identify duration columns
+        duration_cols = ['0+', '2+', '4+', '8+']
+
+        # Apply styling to the pivot table
+        styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
+
+        # Display the styled DataFrame
+        st.dataframe(styled_pivot)
+
+    # Prepare download for Current Alarms Report only if there is data
+    if alarm_data:
+        # Create a dictionary with each alarm's pivot table
+        current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
+        current_alarm_excel_data = to_excel(current_alarm_excel_dict)
+
+        # Add download button for the Excel file
+        st.download_button(
+            label="Download Current Alarms Report",
+            data=current_alarm_excel_data,
+            file_name=f"Current_Alarms_Report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else:
+        st.warning("No current alarm data available for export.")
+
+except Exception as e:
+    # Handle any exceptions that occur
+    st.error(f"An error occurred while processing the Alarm Report: {e}")
+
+finally:
+    # Optional: Any cleanup code goes here
+    pass
