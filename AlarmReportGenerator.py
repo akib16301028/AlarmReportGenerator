@@ -465,33 +465,44 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 # Create pivot table for the filtered data
                 pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot, total_count)
-
-            # Display each pivot table for the current alarms with styling
-            for alarm_name, (pivot, total_count) in alarm_data.items():
-                st.markdown(f"### **{alarm_name}**")
-                st.markdown(f"**Alarm Count:** {total_count}")
-
-                # Identify duration columns
-                duration_cols = ['0+', '2+', '4+', '8+']
-
-                # Apply styling
-                styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
-
-                # Display styled DataFrame
-                st.dataframe(styled_pivot)
-
-            # Prepare download for Current Alarms Report only if there is data
-            if alarm_data:
-                # Create a dictionary with each alarm's pivot table
-                current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
-                current_alarm_excel_data = to_excel(current_alarm_excel_dict)
-                st.download_button(
-                    label="Download Current Alarms Report",
-                    data=current_alarm_excel_data,
-                    file_name=f"Current_Alarms_Report.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            else:
-                st.warning("No current alarm data available for export.")
-    except Exception as e:
-        st.error(f"An error occurred while processing the files: {e}")
+                # Display each pivot table for the current alarms with styling
+    for alarm_name, (pivot, total_count) in alarm_data.items():
+        # Display the Alarm Name as a header
+        st.markdown(f"### **{alarm_name}**")
+    
+        # Add the "Alarm Count" below the alarm name
+        st.markdown(f"**Alarm Count:** {total_count}")
+    
+        # Extract the additional information (if any) from the second row, first column
+        additional_header_info = alarm_df.iloc[1, 0]  # Extracts value from row 2, column 1
+    
+        # Display the additional extracted information (this line will be shown below the alarm count)
+        st.markdown(f"#### {additional_header_info}")
+    
+        # Identify the duration columns for styling
+        duration_cols = ['0+', '2+', '4+', '8+']
+    
+        # Apply styling to the pivot table
+        styled_pivot = style_dataframe(pivot, duration_cols, dark_mode)
+    
+        # Display the styled DataFrame with the pivot data
+        st.dataframe(styled_pivot)
+    
+    # Prepare the downloadable Current Alarms Report only if there is data
+    if alarm_data:
+        # Create a dictionary containing each alarm's pivot table for export
+        current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
+        
+        # Convert the dictionary to Excel format
+        current_alarm_excel_data = to_excel(current_alarm_excel_dict)
+        
+        # Provide a download button for the user to download the report
+        st.download_button(
+            label="Download Current Alarms Report",
+            data=current_alarm_excel_data,
+            file_name=f"Current_Alarms_Report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else:
+        # If no alarm data exists, show a warning
+        st.warning("No current alarm data available for export.")
