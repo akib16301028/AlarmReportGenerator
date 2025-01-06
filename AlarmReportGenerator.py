@@ -183,8 +183,17 @@ def calculate_duration(df):
     # Calculate the duration in seconds
     df['Duration'] = (current_time - df['Last Online Time']).dt.total_seconds()
     
-    # If duration is greater than or equal to 1 day (1440 minutes), show in days
-    df['Duration'] = df['Duration'].apply(lambda x: round(x / (60 * 60 * 24), 2) if x >= 86400 else round(x / (60 * 60), 2))  # 86400 seconds = 1 day, 3600 seconds = 1 hour
+    # Apply conditional logic for formatting the duration
+    def format_duration(seconds):
+        if seconds >= 86400:  # 86400 seconds = 1 day
+            return f"{round(seconds / (60 * 60 * 24), 2)} days"
+        elif seconds >= 3600:  # 3600 seconds = 1 hour
+            return f"{round(seconds / 3600, 2)} hours"
+        else:  # Less than 1 hour
+            return f"{round(seconds / 60, 2)} minutes"
+    
+    # Apply the formatting function
+    df['Duration'] = df['Duration'].apply(format_duration)
     
     return df[['Site Alias', 'Zone', 'Cluster', 'Duration']]
 
