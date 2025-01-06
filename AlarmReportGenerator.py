@@ -172,23 +172,37 @@ def create_offline_pivot(df):
     
     return pivot, total_offline_count
 
-# Function to calculate time offline smartly (minutes, hours, or days)
 def calculate_duration(df):
-    current_time = datetime.now()
-    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
+    # Extract the current time from row 2, column 1
+    current_time_str = df.iloc[1, 0]  # Row index 1 (2nd row), Column index 0 (1st column)
+
+    # Parse the current time from the string
+    if isinstance(current_time_str, str) and current_time_str.startswith("Date:"):
+        current_time_str = current_time_str.split("Date:")[1].strip()
+        current_time = datetime.strptime(current_time_str, "%d/%m/%Y %I:%M %p")
+    else:
+        raise ValueError("The specified cell does not contain a valid date string.")
+
+    # Convert 'Last Online Time' to datetime
+    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
+
+    # Calculate hours offline
     df['Hours Offline'] = (current_time - df['Last Online Time']).dt.total_seconds() / 3600
 
+    # Format the offline duration
     def format_offline_duration(hours):
         if hours < 1:
             return f"{int(hours * 60)} minutes"
         elif hours < 24:
             return f"{int(hours)} hours"
-        else:
+        elif hours >= 24:
             return f"{int(hours // 24)} days"
 
     df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
 
+    # Return the formatted DataFrame
     return df[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
+
 
 
 
