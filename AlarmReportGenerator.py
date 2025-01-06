@@ -467,7 +467,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 alarm_data[alarm_name] = (pivot, total_count)
 
                 # Display each pivot table for the current alarms with styling
-                try:
+            try:
                 # Your code that may raise an exception
                 alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
 
