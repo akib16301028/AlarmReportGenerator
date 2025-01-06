@@ -466,12 +466,13 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
                 alarm_data[alarm_name] = (pivot, total_count)
 
-            # Display each pivot table for the current alarms with styling
-            for alarm_name, (pivot, total_count) in alarm_data.items():
-                st.markdown(f"### **{alarm_name}**")
-                st.markdown(f"**Alarm Count:** {total_count}")
+            try:
+                alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
+                additional_header_info = alarm_df.iloc[1, 0]
+                st.markdown(f"### Current Alarms Report")
+                st.markdown(f"#### {additional_header_info}")
 
-                # Identify duration columns
+            # Identify duration columns
                 duration_cols = ['0+', '2+', '4+', '8+']
 
                 # Apply styling
@@ -479,6 +480,11 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
                 # Display styled DataFrame
                 st.dataframe(styled_pivot)
+            except Exception as e:
+                st.error(f"An error occurred while processing the Alarm Report: {e}")
+            finally:
+                pass
+                
 
             # Prepare download for Current Alarms Report only if there is data
             if alarm_data:
