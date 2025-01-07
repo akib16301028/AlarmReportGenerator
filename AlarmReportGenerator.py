@@ -314,7 +314,7 @@ def extract_time_from_file(uploaded_file):
         df = pd.read_excel(uploaded_file, header=None)
 
         # Extract the time value from the first row and first column
-        extracted_time = df.iloc[0, 0]  # Row 0, Column 0
+        extracted_time = df.iloc[1, 0]  # Row 0, Column 0
 
         # Return the extracted value as a string (no need for datetime conversion)
         return str(extracted_time)
