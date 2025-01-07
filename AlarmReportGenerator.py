@@ -338,17 +338,11 @@ offline_file_time = None
 
 if uploaded_alarm_file is not None:
     alarm_file_time = extract_time_from_file(uploaded_alarm_file)
-    if alarm_file_time:
-        st.sidebar.markdown(f"**Current Alarms Report Time:** {alarm_file_time}")
-    else:
-        st.sidebar.markdown("**Current Alarms Report Time:** Invalid or missing data")
 
 if uploaded_offline_file is not None:
     offline_file_time = extract_time_from_file(uploaded_offline_file)
-    if offline_file_time:
-        st.sidebar.markdown(f"**Offline Report Time:** {offline_file_time}")
-    else:
-        st.sidebar.markdown("**Offline Report Time:** Invalid or missing data")
+
+# Now alarm_file_time and offline_file_time are available for use but not displayed in the sidebar
 
 # Add checkbox for offline site log
 show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
