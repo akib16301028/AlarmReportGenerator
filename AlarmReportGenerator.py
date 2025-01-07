@@ -323,22 +323,15 @@ st.title("StatusMatrix@STL")
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
 uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
+# Initialize Sidebar Filters
+st.sidebar.header("Filters")
+
+# Add checkbox for offline site log
+show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
+
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
         # Read Excel files starting from the third row (header=2)
-        alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
-        offline_df = pd.read_excel(uploaded_offline_file, header=2)
-
-        # Initialize Sidebar Filters
-        st.sidebar.header("Filters")
-
-        # Add checkbox for offline site log
-        show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
-
-        # Main processing block for uploaded files
-if uploaded_alarm_file is not None and uploaded_offline_file is not None:
-    try:
-        # Read Excel files
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
@@ -347,12 +340,19 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             st.markdown("### Offline Site Log")
             columns_to_display = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
             
-            # Check if required columns exist
+            # Check if required columns exist in the offline file
             if all(col in offline_df.columns for col in columns_to_display):
                 st.dataframe(offline_df[columns_to_display])
             else:
                 missing_columns = [col for col in columns_to_display if col not in offline_df.columns]
                 st.error(f"Missing columns in the uploaded offline report: {', '.join(missing_columns)}")
+
+        # Other functionality (processing alarms, etc.) continues here...
+        # Make sure to include your other checks and features from the previous code
+
+    except Exception as e:
+        st.error(f"An error occurred while processing the files: {e}")
+
 
         # Get unique clusters for filtering
         offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
