@@ -346,7 +346,7 @@ if uploaded_offline_file is not None:
 
 # Add checkbox for offline site log
 show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
-show_offline_site_log = st.markdown(f"{offline_file_time}")
+#show_offline_site_log = st.markdown(f"{offline_file_time}")
 
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
