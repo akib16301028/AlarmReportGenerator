@@ -358,7 +358,7 @@ if uploaded_offline_file is not None:
             try:
                 # Specify columns to display
                 columns_to_display = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
-                
+
                 # Check if the required columns exist
                 if all(col in offline_df.columns for col in columns_to_display):
                     offline_log_display = offline_df[columns_to_display]
@@ -370,6 +370,7 @@ if uploaded_offline_file is not None:
                 st.error(f"An error occurred while processing the Offline Site Log: {e}")
     except Exception as e:
         st.error(f"An error occurred while processing the offline report: {e}")
+
 
 
  # === Current Alarms Filters ===
