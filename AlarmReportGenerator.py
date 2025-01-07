@@ -298,7 +298,6 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     
     return styler
 
-
 # Function to determine if the current theme is dark
 def is_dark_mode():
     # Streamlit provides theme options that can be accessed via st.get_option
@@ -323,33 +322,33 @@ st.title("StatusMatrix@STL")
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
 uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
+# Initialize Sidebar Filters
+st.sidebar.header("Filters")
+
+# Add checkbox for offline site log
+show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
+
+# Process uploaded files
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
-        # Read Excel files starting from the third row (header=2)
+        # Read Excel files
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
-    if show_offline_site_log:
-        st.markdown("### Offline Site Log")
-        # Specify columns to display
-        columns_to_display = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
+        # Show Offline Site Log
+        if show_offline_site_log:
+            st.markdown("### Offline Site Log")
+            # Specify columns to display
+            columns_to_display = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
 
-        # Check if required columns exist in the uploaded file
-    if all(col in offline_df.columns for col in columns_to_display):
-        # Display the required columns
-        st.dataframe(offline_df[columns_to_display])
-     else:
-        # Show error if required columns are missing
-        missing_columns = [col for col in columns_to_display if col not in offline_df.columns]
-        st.error(f"Missing columns in the uploaded offline report: {', '.join(missing_columns)}")
-
-        
-
-        # Initialize Sidebar Filters
-        st.sidebar.header("Filters")
-
-        # Add checkbox for offline site log
-        show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
+            # Check if required columns exist in the uploaded file
+            if all(col in offline_df.columns for col in columns_to_display):
+                # Display the required columns
+                st.dataframe(offline_df[columns_to_display])
+            else:
+                # Show error if required columns are missing
+                missing_columns = [col for col in columns_to_display if col not in offline_df.columns]
+                st.error(f"Missing columns in the uploaded offline report: {', '.join(missing_columns)}")
 
         # Get unique clusters for filtering
         offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
@@ -359,6 +358,11 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             options=offline_clusters,
             index=0
         )
+
+    except Exception as e:
+        st.error(f"An error occurred while processing the files: {e}")
+
+
 
  # === Current Alarms Filters ===
         st.sidebar.subheader("Current Alarms Filters")
