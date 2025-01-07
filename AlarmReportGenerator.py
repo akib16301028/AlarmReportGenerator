@@ -188,7 +188,7 @@ def calculate_duration(df):
 
     df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
 
-    # Filter rows where duration is more than 1 day
+# Filter rows where duration is more than 1 day
     df_filtered = df[df['Hours Offline'] > 24]
 
     return df_filtered[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
@@ -330,6 +330,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
         
+
         # Initialize Sidebar Filters
         st.sidebar.header("Filters")
 
@@ -342,7 +343,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             index=0
         )
 
-        # === Current Alarms Filters ===
+ # === Current Alarms Filters ===
         st.sidebar.subheader("Current Alarms Filters")
         st.sidebar.text("[select alarm first]")
         # Get unique alarm names
