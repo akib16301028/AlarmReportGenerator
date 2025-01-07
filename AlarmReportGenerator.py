@@ -1,40 +1,236 @@
-import pandas as pd
 import streamlit as st
+import pandas as pd
 import re
-from io import BytesIO
 from datetime import datetime
+from io import BytesIO
 
-# Function to extract client from Site Alias
+# Function to extract client name from Site Alias
 def extract_client(site_alias):
-    match = re.match(r"([A-Za-z]+)-(\d+)", site_alias)
-    if match:
-        return match.group(1)
-    return None
+    match = re.search(r'\((.*?)\)', site_alias)
+    return match.group(1) if match else None
 
-# Function to calculate duration
-def convert_duration(seconds):
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    return f"{hours}h {minutes}m"
+# Function to categorize Duration Slot (Hours)
+def categorize_duration(hours):
+    if 0 <= hours < 2:
+        return '0+'
+    elif 2 <= hours < 4:
+        return '2+'
+    elif 4 <= hours < 8:
+        return '4+'
+    elif hours >= 8:
+        return '8+'
+    else:
+        return 'Unknown'
 
-# Function to create offline pivot table
-def create_offline_pivot(df):
-    pivot = df.pivot_table(
+# Function to create pivot table for a specific alarm
+def create_pivot_table(df, alarm_name):
+    alarm_df = df[df['Alarm Name'] == alarm_name].copy()
+    
+    if alarm_name == 'DCDB-01 Primary Disconnect':
+        alarm_df = alarm_df[~alarm_df['RMS Station'].str.startswith('L')]
+    
+    # Categorize Duration Slot (Hours)
+    alarm_df['Duration Category'] = alarm_df['Duration Slot (Hours)'].apply(categorize_duration)
+    
+    # Create pivot tables for each Duration Category
+    pivot_total = pd.pivot_table(
+        alarm_df,
         index=['Cluster', 'Zone'],
-        columns='Offline Duration',
+        columns='Client',
         values='Site Alias',
         aggfunc='count',
         fill_value=0
-    )
-    total_count = df['Site Alias'].count()
-    return pivot, total_count
+    ).reset_index()
+    
+    client_columns = [col for col in pivot_total.columns if col not in ['Cluster', 'Zone']]
+    pivot_total['Total'] = pivot_total[client_columns].sum(axis=1)
+    
+    # Pivot for Duration Categories
+    pivot_duration = pd.pivot_table(
+        alarm_df,
+        index=['Cluster', 'Zone'],
+        columns='Duration Category',
+        values='Site Alias',
+        aggfunc='count',
+        fill_value=0
+    ).reset_index()
+    
+    # Merge the two pivot tables
+    pivot = pd.merge(pivot_total, pivot_duration, on=['Cluster', 'Zone'], how='left')
+    
+    # Ensure all Duration Categories are present
+    for cat in ['0+', '2+', '4+', '8+']:
+        if cat not in pivot.columns:
+            pivot[cat] = 0
+    
+    # Reorder columns: Original client columns + 'Total' + Duration Categories
+    pivot = pivot[['Cluster', 'Zone'] + client_columns + ['Total', '0+', '2+', '4+', '8+']]
+    
+    # Add Total row
+    numeric_cols = pivot.select_dtypes(include=['number']).columns
+    total_row = pivot[numeric_cols].sum().to_frame().T
+    total_row[['Cluster', 'Zone']] = ['Total', '']
+    
+    # Replace numeric columns in total_row with empty strings
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "0").astype(str)
+    
+    pivot = pd.concat([pivot, total_row], ignore_index=True)
+    
+    total_alarm_count = pivot['Total'].iloc[-1]
+    
+    # Remove repeated Cluster names for better readability
+    last_cluster = None
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
+        else:
+            last_cluster = pivot.at[i, 'Cluster']
+    
+    return pivot, total_alarm_count
 
-# Function to calculate duration for offline summary
+import pandas as pd
+
+# Function to create pivot table for offline report
+def create_offline_pivot(df):
+    df = df.drop_duplicates()
+    
+    # Create new columns for each duration category
+    df['Less than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'Less than 24 hours' in x else 0)
+    df['More than 24 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 24 hours' in x and '72' not in x else 0)
+    df['More than 48 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 48 hours' in x else 0)
+    df['More than 72 hours'] = df['Duration'].apply(lambda x: 1 if 'More than 72 hours' in x else 0)
+    
+    pivot = df.groupby(['Cluster', 'Zone']).agg({
+        'Less than 24 hours': 'sum',
+        'More than 24 hours': 'sum',
+        'More than 48 hours': 'sum',  # Include the new column here
+        'More than 72 hours': 'sum',
+        'Site Alias': 'nunique'
+    }).reset_index()
+
+    pivot = pivot.rename(columns={'Site Alias': 'Total'})
+    
+    total_row = pivot[['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']].sum().to_frame().T
+    total_row[['Cluster', 'Zone']] = ['Total', '']
+    
+    # Replace numeric columns in total_row with empty strings
+    numeric_cols = ['Less than 24 hours', 'More than 24 hours', 'More than 48 hours', 'More than 72 hours', 'Total']
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "0").astype(str)
+    
+    pivot = pd.concat([pivot, total_row], ignore_index=True)
+    
+    total_offline_count = int(pivot['Total'].iloc[-1])
+    
+    last_cluster = None
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
+        else:
+            last_cluster = pivot.at[i, 'Cluster']
+    
+    return pivot, total_offline_count
+
+    
+    # Replace numeric columns in total_row with empty strings
+    numeric_cols = ['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "0").astype(str)
+    
+    pivot = pd.concat([pivot, total_row], ignore_index=True)
+    
+    total_offline_count = int(pivot['Total'].iloc[-1])
+    
+    last_cluster = None
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
+        else:
+            last_cluster = pivot.at[i, 'Cluster']
+    
+    return pivot, total_offline_count
+
+    # Setting empty cells for the '48+' column if the value is zero
+    pivot['More than 48 hours'] = pivot['More than 48 hours'].replace("", "0")  # This line ensures that if the value is 0, it stays empty
+
+    return pivot, total_offline_count
+
+
+    
+    # Replace numeric columns in total_row with empty strings
+    numeric_cols = ['Less than 24 hours', 'More than 24 hours','More than 48 hours', 'More than 72 hours', 'Total']
+    total_row[numeric_cols] = total_row[numeric_cols].replace(0, "0").astype(str)
+    
+    pivot = pd.concat([pivot, total_row], ignore_index=True)
+    
+    total_offline_count = int(pivot['Total'].iloc[-1])
+    
+    last_cluster = None
+    for i in range(len(pivot)):
+        if pivot.at[i, 'Cluster'] == last_cluster:
+            pivot.at[i, 'Cluster'] = ''
+        else:
+            last_cluster = pivot.at[i, 'Cluster']
+    
+    return pivot, total_offline_count
+
+# Function to calculate time offline smartly (minutes, hours, or days) and filter for durations > 1 day
 def calculate_duration(df):
-    df['Duration_in_seconds'] = (df['Last Online Time'] - df['Offline Duration']).dt.total_seconds()
+    current_time = datetime.now()
+    df['Last Online Time'] = pd.to_datetime(df['Last Online Time'], format='%Y-%m-%d %H:%M:%S')
+    df['Hours Offline'] = (current_time - df['Last Online Time']).dt.total_seconds() / 3600
+
+    def format_offline_duration(hours):
+        if hours < 1:
+            return f"{int(hours * 60)} minutes"
+        elif hours < 24:
+            return f"{int(hours)} hours"
+        else:
+            return f"{int(hours // 24)} days"
+
+    df['Offline Duration'] = df['Hours Offline'].apply(format_offline_duration)
+
+# Filter rows where duration is more than 1 day
+    df_filtered = df[df['Hours Offline'] > 24]
+
+    return df_filtered[['Offline Duration', 'Site Alias', 'Cluster', 'Zone', 'Last Online Time']]
+
+    def show_offline_site_log(file):
+        # Read the uploaded file, skipping the first row (assuming row 2 is where headers start)
+        df = pd.read_excel(file, header=1)  # Skip the first row, set header to row 2
+        
+        # Select the necessary columns to display
+        columns_to_display = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
+        
+        # Check if the necessary columns exist in the dataframe
+        if all(col in df.columns for col in columns_to_display):
+            # Filter the dataframe to only show the required columns
+            df = df[columns_to_display]
+            
+            # Display the dataframe (you can return this in a template for a web app)
+            return df
+        else:
+            return "Required columns are missing in the uploaded file."
+
+    # Apply the conversion function to the 'Duration_in_seconds' column
     df['Duration'] = df['Duration_in_seconds'].apply(convert_duration)
+
+    # Drop the 'Duration_in_seconds' column as it is no longer needed
     df = df.drop(columns=['Duration_in_seconds'])
+
+    # Return the final dataframe with 'Site Alias', 'Zone', 'Cluster', and the 'Duration'
     return df[['Site Alias', 'Zone', 'Cluster', 'Duration']]
+
+
+# Function to convert multiple DataFrames to Excel with separate sheets
+def to_excel(dfs_dict):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        for sheet_name, df in dfs_dict.items():
+            valid_sheet_name = re.sub(r'[\\/*?:[\]]', '_', sheet_name)[:31]
+            df.to_excel(writer, sheet_name=valid_sheet_name, index=False)
+    return output.getvalue()
+
+
+
 # Function to convert multiple DataFrames to Excel with separate sheets
 def to_excel(dfs_dict):
     output = BytesIO()
@@ -50,7 +246,7 @@ def create_site_wise_log(df, selected_alarm):
         filtered_df = df.copy()
     else:
         filtered_df = df[df['Alarm Name'] == selected_alarm].copy()
-    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time', 'Duration']]
+    filtered_df = filtered_df[['Site Alias', 'Cluster', 'Zone', 'Alarm Name', 'Alarm Time','Duration']]
     filtered_df = filtered_df.sort_values(by='Alarm Time', ascending=False)
     return filtered_df
 
@@ -90,10 +286,10 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     
     # Optional: Remove borders for a cleaner look
     styler.set_table_styles(
-        [({
+        [{
             'selector': 'th',
             'props': [('border', '1px solid black')]
-        }),
+        },
         {
             'selector': 'td',
             'props': [('border', '1px solid black')]
@@ -102,16 +298,24 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     
     return styler
 
+
 # Function to determine if the current theme is dark
 def is_dark_mode():
     # Streamlit provides theme options that can be accessed via st.get_option
+    # As of Streamlit 1.10, you can access the theme via st.runtime
+    # However, this may vary based on the Streamlit version
+    # Here, we'll use st.session_state as a workaround
+
+    # Check if 'theme' is in session_state
     if 'theme' in st.session_state:
         theme = st.session_state['theme']
     else:
+        # Default to light mode if not set
         theme = 'light'
 
     # Assume 'dark' indicates dark mode
     return theme.lower() == 'dark'
+
 # Streamlit app
 st.title("StatusMatrix@STL")
 
@@ -121,9 +325,11 @@ uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
-        # Read Excel files starting from the correct rows
+        # Read Excel files starting from the third row (header=2)
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
-        offline_df = pd.read_excel(uploaded_offline_file, header=1)  # Offline file starts from row 2
+        offline_df = pd.read_excel(uploaded_offline_file, header=2)
+
+        
 
         # Initialize Sidebar Filters
         st.sidebar.header("Filters")
@@ -137,9 +343,9 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             index=0
         )
 
-        # === Current Alarms Filters ===
+ # === Current Alarms Filters ===
         st.sidebar.subheader("Current Alarms Filters")
-        st.sidebar.markdown("[select alarm first]")
+        st.sidebar.text("[select alarm first]")
         # Get unique alarm names
         alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
         alarm_names.insert(0, "All")  # Add 'All' option
@@ -151,7 +357,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
         # === Site-Wise Log Filters ===
         st.sidebar.subheader("Site-Wise Log Filters")
-        view_site_wise = st.sidebar.checkbox("View Site-Wise Log", value=False)  # Default to False
+        view_site_wise = st.sidebar.checkbox("View Site-Wise Log")
         if view_site_wise:
             site_wise_alarms = st.sidebar.selectbox(
                 "Select Alarm for Site-Wise Log",
@@ -159,19 +365,9 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 index=0
             )
 
-        # === Show Offline Site Log ===
-        st.sidebar.subheader("Offline Site Log")
-        show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
-        if show_offline_site_log:
-            # Check if required columns exist
-            required_columns = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
-            if all(col in offline_df.columns for col in required_columns):
-                # Display the required columns
-                st.markdown("### Offline Site Log")
-                st.dataframe(offline_df[required_columns])
-            else:
-                st.error(f"The uploaded Offline Report file is missing one or more required columns: {required_columns}")
         # Determine if dark mode is active
+        # Note: Streamlit does not provide a direct method to detect theme,
+        # so this function is a placeholder and may need adjustment based on Streamlit version
         dark_mode = is_dark_mode()
 
         # Process the Offline Report
@@ -212,6 +408,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+
+
         # === Site-Wise Log Display ===
         if view_site_wise:
             st.markdown("### Site-Wise Log")
@@ -232,6 +430,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
             alarm_df = alarm_df[~alarm_df['Client'].isnull()]
 
+ 
             # Add the current time to the alarm header
             st.markdown(f"### Current Alarms Report")
 
@@ -276,8 +475,6 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                     alarm_dates = pd.to_datetime(filtered_alarm_df['Alarm Time'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce')
                     min_date = alarm_dates.min().date()
                     max_date = alarm_dates.max().date()
-
-                    # Ensure date range is a tuple of two dates
                     selected_date_range = st.sidebar.date_input(
                         f"Select Date Range for {alarm_name}",
                         value=(min_date, max_date),
@@ -285,6 +482,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                         max_value=max_date,
                         key=f"date_{alarm_name}"
                     )
+                    # Ensure date range is a tuple of two dates
                     if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
                         start_date, end_date = selected_date_range
                     else:
@@ -295,8 +493,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                         format='%d/%m/%Y %I:%M:%S %p', 
                         errors='coerce'
                     )
-                    filtered_alarm_df = filtered_alarm_df[(
-                        filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) & 
+                    filtered_alarm_df = filtered_alarm_df[
+                        (filtered_alarm_df['Alarm Time Parsed'].dt.date >= start_date) &
                         (filtered_alarm_df['Alarm Time Parsed'].dt.date <= end_date)
                     ]
 
@@ -330,9 +528,10 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 st.download_button(
                     label="Download Current Alarms Report",
                     data=current_alarm_excel_data,
-                    file_name=f"Current_Alarms_Report_{datetime.now().strftime('%Y-%m-%d')}.xlsx",
+                    file_name=f"Current_Alarms_Report.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-
+            else:
+                st.warning("No current alarm data available for export.")
     except Exception as e:
-        st.error(f"Error processing the files: {e}")
+        st.error(f"An error occurred while processing the files: {e}")
