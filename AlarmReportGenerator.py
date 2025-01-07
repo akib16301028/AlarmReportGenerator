@@ -357,6 +357,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # === Offline Site Log ===
         if show_offline_site_log:
             st.markdown("### Offline Site Log")
+            st.markdown(f"{offline_file_time}")
             columns_to_display = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
             
             # Check if required columns exist in the offline file
