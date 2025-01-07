@@ -343,6 +343,26 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             index=0
         )
 
+        # Show Offline Site Log in Sidebar
+        
+        if uploaded_offline_file is not None:
+    try:
+        # Read the uploaded file, starting from the second row (header=1)
+        offline_df = pd.read_excel(uploaded_offline_file, header=1)
+
+        # Sidebar option to show offline site log
+        show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
+
+        if show_offline_site_log:
+            # Check if required columns exist
+            required_columns = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
+            if all(col in offline_df.columns for col in required_columns):
+                # Display the required columns
+                st.markdown("### Offline Site Log")
+                st.dataframe(offline_df[required_columns])
+            else:
+                st.error(f"The uploaded file is missing one or more required columns: {required_columns}")
+
         # === Current Alarms Filters ===
         st.sidebar.subheader("Current Alarms Filters")
         st.sidebar.text("[select alarm first]")
