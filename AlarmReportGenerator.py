@@ -329,16 +329,16 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
-        if show_offline_site_log:
+    if show_offline_site_log:
         st.markdown("### Offline Site Log")
         # Specify columns to display
         columns_to_display = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
 
         # Check if required columns exist in the uploaded file
-        if all(col in offline_df.columns for col in columns_to_display):
+    if all(col in offline_df.columns for col in columns_to_display):
         # Display the required columns
         st.dataframe(offline_df[columns_to_display])
-        else:
+     else:
         # Show error if required columns are missing
         missing_columns = [col for col in columns_to_display if col not in offline_df.columns]
         st.error(f"Missing columns in the uploaded offline report: {', '.join(missing_columns)}")
