@@ -557,19 +557,21 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 # Display styled DataFrame
                 st.dataframe(styled_pivot)
 
-            # Prepare download for Current Alarms Report only if there is data
-            if alarm_data:
-                # Create a dictionary with each alarm's pivot table
-                current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
-                current_alarm_excel_data = to_excel(current_alarm_excel_dict)
-                st.download_button(
-                    label="Download Current Alarms Report",
-                    data=current_alarm_excel_data,
-                    file_name=f"Current_Alarms_Report.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            else:
-                st.warning("No current alarm data available for export.")
+            # Add the Current Alarms Report download button to the sidebar
+if alarm_data:
+    # Create a dictionary with each alarm's pivot table
+    current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
+    current_alarm_excel_data = to_excel(current_alarm_excel_dict)
+    
+    st.sidebar.download_button(
+        label="Download Current Alarms Report",
+        data=current_alarm_excel_data,
+        file_name="Current_Alarms_Report.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+else:
+    st.sidebar.warning("No current alarm data available for export.")
+
 
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
