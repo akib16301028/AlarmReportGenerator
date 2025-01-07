@@ -325,11 +325,9 @@ uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
-        # Read Excel files starting from the third row (header=2)
+        # Read Excel files starting from the correct rows
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
-        offline_df = pd.read_excel(uploaded_offline_file, header=2)
-
-        
+        offline_df = pd.read_excel(uploaded_offline_file, header=1)  # Offline file starts from row 2
 
         # Initialize Sidebar Filters
         st.sidebar.header("Filters")
@@ -343,7 +341,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             index=0
         )
 
- # === Current Alarms Filters ===
+        # === Current Alarms Filters ===
         st.sidebar.subheader("Current Alarms Filters")
         st.sidebar.text("[select alarm first]")
         # Get unique alarm names
@@ -364,6 +362,19 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 options=alarm_names,
                 index=0
             )
+
+        # === Show Offline Site Log ===
+        st.sidebar.subheader("Offline Site Log")
+        show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
+        if show_offline_site_log:
+            # Check if required columns exist
+            required_columns = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
+            if all(col in offline_df.columns for col in required_columns):
+                # Display the required columns
+                st.markdown("### Offline Site Log")
+                st.dataframe(offline_df[required_columns])
+            else:
+                st.error(f"The uploaded Offline Report file is missing one or more required columns: {required_columns}")
 
         # Determine if dark mode is active
         # Note: Streamlit does not provide a direct method to detect theme,
@@ -407,6 +418,9 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             file_name="Offline_Summary.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+    except Exception as e:
+        st.error(f"An error occurred while processing the files: {e}")
 
 
 
