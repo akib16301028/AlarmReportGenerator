@@ -298,12 +298,22 @@ def style_dataframe(df, duration_cols, is_dark_mode):
     
     return styler
 
+
 # Function to determine if the current theme is dark
 def is_dark_mode():
+    # Streamlit provides theme options that can be accessed via st.get_option
+    # As of Streamlit 1.10, you can access the theme via st.runtime
+    # However, this may vary based on the Streamlit version
+    # Here, we'll use st.session_state as a workaround
+
+    # Check if 'theme' is in session_state
     if 'theme' in st.session_state:
         theme = st.session_state['theme']
     else:
+        # Default to light mode if not set
         theme = 'light'
+
+    # Assume 'dark' indicates dark mode
     return theme.lower() == 'dark'
 
 # Streamlit app
@@ -313,13 +323,19 @@ st.title("StatusMatrix@STL")
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
 uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
-# Initialize Sidebar Filters
-st.sidebar.header("Filters")
+if uploaded_alarm_file is not None and uploaded_offline_file is not None:
+    try:
+        # Read Excel files starting from the third row (header=2)
+        alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
+        offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
-# Add checkbox for offline site log
-show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
+        # Initialize Sidebar Filters
+        st.sidebar.header("Filters")
 
-# Main processing block for uploaded files
+        # Add checkbox for offline site log
+        show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
+
+        # Main processing block for uploaded files
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
         # Read Excel files
@@ -338,63 +354,14 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 missing_columns = [col for col in columns_to_display if col not in offline_df.columns]
                 st.error(f"Missing columns in the uploaded offline report: {', '.join(missing_columns)}")
 
-        # === Main Alarm Report Processing ===
-        else:
-            # Check for required columns in Alarm Report
-            alarm_required_columns = [
-                'RMS Station', 'Cluster', 'Zone', 'Site Alias',
-                'Alarm Name', 'Alarm Time', 'Duration Slot (Hours)'
-            ]
-            if not all(col in alarm_df.columns for col in alarm_required_columns):
-                st.error(f"The uploaded Alarm Report file is missing required columns: {alarm_required_columns}")
-            else:
-                # Extract client information
-                alarm_df['Client'] = alarm_df['Site Alias'].apply(extract_client)
-                alarm_df = alarm_df[~alarm_df['Client'].isnull()]
-
-                st.markdown(f"### Current Alarms Report")
-
-                # Define the priority order for alarm names
-                priority_order = [
-                    'Mains Fail', 'Battery Low', 'DCDB-01 Primary Disconnect',
-                    'PG Run', 'MDB Fault', 'Door Open'
-                ]
-
-                # Separate prioritized alarms
-                alarm_names = alarm_df['Alarm Name'].unique().tolist()
-                prioritized_alarms = [name for name in priority_order if name in alarm_names]
-                non_prioritized_alarms = [name for name in alarm_names if name not in priority_order]
-                ordered_alarm_names = prioritized_alarms + non_prioritized_alarms
-
-                alarm_data = {}  # Store alarm data
-
-                # Process alarms
-                for alarm_name in ordered_alarm_names:
-                    filtered_alarm_df = alarm_df[alarm_df['Alarm Name'] == alarm_name]
-                    pivot, total_count = create_pivot_table(filtered_alarm_df, alarm_name)
-                    alarm_data[alarm_name] = (pivot, total_count)
-
-                # Display alarms
-                for alarm_name, (pivot, total_count) in alarm_data.items():
-                    st.markdown(f"### **{alarm_name}**")
-                    st.markdown(f"**Alarm Count:** {total_count}")
-                    duration_cols = ['0+', '2+', '4+', '8+']
-                    styled_pivot = style_dataframe(pivot, duration_cols, is_dark_mode())
-                    st.dataframe(styled_pivot)
-
-                # Download report
-                if alarm_data:
-                    current_alarm_excel_dict = {alarm_name: data[0] for alarm_name, data in alarm_data.items()}
-                    current_alarm_excel_data = to_excel(current_alarm_excel_dict)
-                    st.download_button(
-                        label="Download Current Alarms Report",
-                        data=current_alarm_excel_data,
-                        file_name=f"Current_Alarms_Report.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-    except Exception as e:
-        st.error(f"An error occurred while processing the files: {e}")
-
+        # Get unique clusters for filtering
+        offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
+        offline_clusters.insert(0, "All")  # Add 'All' option
+        selected_offline_cluster = st.sidebar.selectbox(
+            "Select Cluster",
+            options=offline_clusters,
+            index=0
+        )
 
  # === Current Alarms Filters ===
         st.sidebar.subheader("Current Alarms Filters")
