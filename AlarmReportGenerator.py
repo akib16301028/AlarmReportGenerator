@@ -353,15 +353,15 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
             index=0
         )
 
-        # === Site-Wise Log Filters ===
-        st.sidebar.subheader("Site-Wise Log Filters")
-        view_site_wise = st.sidebar.checkbox("View Site-Wise Log")
-        if view_site_wise:
-            site_wise_alarms = st.sidebar.selectbox(
-                "Select Alarm for Site-Wise Log",
-                options=alarm_names,
-                index=0
-            )
+     # === Site-Wise Log Filters ===
+st.sidebar.subheader("Site-Wise Log Filters")
+view_site_wise = st.sidebar.checkbox("View Site-Wise Log", value=False)  # Default to False
+if view_site_wise:
+    site_wise_alarms = st.sidebar.selectbox(
+        "Select Alarm for Site-Wise Log",
+        options=alarm_names,
+        index=0
+    )
 
         # === Show Offline Site Log ===
         st.sidebar.subheader("Offline Site Log")
