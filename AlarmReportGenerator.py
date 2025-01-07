@@ -315,11 +315,9 @@ def extract_time_from_file(uploaded_file):
 
         # Extract the time value from the first row and first column
         extracted_time = df.iloc[0, 0]  # Row 0, Column 0
-        
-        # Ensure the extracted value is a valid datetime format
-        extracted_time = pd.to_datetime(extracted_time, errors='coerce')
-        
-        return extracted_time
+
+        # Return the extracted value as a string (no need for datetime conversion)
+        return str(extracted_time)
     except Exception as e:
         st.error(f"Error extracting time from the file: {e}")
         return None
@@ -340,13 +338,17 @@ offline_file_time = None
 
 if uploaded_alarm_file is not None:
     alarm_file_time = extract_time_from_file(uploaded_alarm_file)
-    if alarm_file_time is not None:
-        st.sidebar.markdown(f"**Current Alarms Report Time:** {alarm_file_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    if alarm_file_time:
+        st.sidebar.markdown(f"**Current Alarms Report Time:** {alarm_file_time}")
+    else:
+        st.sidebar.markdown("**Current Alarms Report Time:** Invalid or missing data")
 
 if uploaded_offline_file is not None:
     offline_file_time = extract_time_from_file(uploaded_offline_file)
-    if offline_file_time is not None:
-        st.sidebar.markdown(f"**Offline Report Time:** {offline_file_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    if offline_file_time:
+        st.sidebar.markdown(f"**Offline Report Time:** {offline_file_time}")
+    else:
+        st.sidebar.markdown("**Offline Report Time:** Invalid or missing data")
 
 # Add checkbox for offline site log
 show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
