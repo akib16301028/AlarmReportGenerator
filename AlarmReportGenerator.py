@@ -426,7 +426,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
         # Display the Offline Report
         st.markdown("### Offline Report")
         st.markdown(f"**Total Offline Count:** {total_offline_count}")
-        st.markdown(f"**Offline Report Time:** {offline_file_time}")
+        st.markdown(f"{offline_file_time}")
 
         # Apply styling
         styled_pivot_offline = style_dataframe(filtered_pivot_offline, ['Less than 24 hours', 'More than 24 hours', 'More than 72 hours'], dark_mode)
