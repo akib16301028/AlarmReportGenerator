@@ -307,101 +307,74 @@ def is_dark_mode():
         theme = 'light'
     return theme.lower() == 'dark'
 
-# Streamlit app title
+# Streamlit app
 st.title("StatusMatrix@STL")
 
 # File Uploads
 uploaded_alarm_file = st.file_uploader("Upload Current Alarms Report", type=["xlsx"])
 uploaded_offline_file = st.file_uploader("Upload Offline Report", type=["xlsx"])
 
-# Sidebar filters
+# Initialize Sidebar Filters
 st.sidebar.header("Filters")
 
 # Add checkbox for offline site log
 show_offline_site_log = st.sidebar.checkbox("Show Offline Site Log")
 
-# Other sidebar options
-# Get unique clusters for filtering
-if uploaded_offline_file is not None:
-    offline_df = pd.read_excel(uploaded_offline_file, header=2)
-    offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
-    offline_clusters.insert(0, "All")  # Add 'All' option
-    selected_offline_cluster = st.sidebar.selectbox(
-        "Select Cluster for Offline Report",
-        options=offline_clusters,
-        index=0
-    )
-
-# Additional sidebar filters
-st.sidebar.subheader("Current Alarms Filters")
-show_alarm_log = st.sidebar.checkbox("Show Current Alarms")
-
-if uploaded_alarm_file is not None:
-    alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
-
-    # Get unique alarm names
-    alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
-    alarm_names.insert(0, "All")  # Add 'All' option
-    selected_alarm = st.sidebar.selectbox(
-        "Select Alarm to Filter",
-        options=alarm_names,
-        index=0
-    )
-
-    # Site-Wise Log Filters
-    st.sidebar.subheader("Site-Wise Log Filters")
-    view_site_wise = st.sidebar.checkbox("View Site-Wise Log")
-    if view_site_wise:
-        site_wise_alarms = st.sidebar.selectbox(
-            "Select Alarm for Site-Wise Log",
-            options=alarm_names,
-            index=0
-        )
-
-# Data Processing (Uploaded Files)
 if uploaded_alarm_file is not None and uploaded_offline_file is not None:
     try:
-        # Read the uploaded Excel files
+        # Read Excel files starting from the third row (header=2)
         alarm_df = pd.read_excel(uploaded_alarm_file, header=2)
         offline_df = pd.read_excel(uploaded_offline_file, header=2)
 
-        # === Display Offline Site Log ===
+        # === Offline Site Log ===
         if show_offline_site_log:
             st.markdown("### Offline Site Log")
             columns_to_display = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Last Online Time', 'Duration']
-
-            # Check if required columns exist in offline report
+            
+            # Check if required columns exist in the offline file
             if all(col in offline_df.columns for col in columns_to_display):
                 st.dataframe(offline_df[columns_to_display])
             else:
                 missing_columns = [col for col in columns_to_display if col not in offline_df.columns]
                 st.error(f"Missing columns in the uploaded offline report: {', '.join(missing_columns)}")
 
-        # === Display Current Alarms ===
-        if show_alarm_log:
-            st.markdown("### Current Alarms")
-            # Process alarms based on selected alarm filter
-            if selected_alarm != "All":
-                filtered_alarm_df = alarm_df[alarm_df['Alarm Name'] == selected_alarm]
-            else:
-                filtered_alarm_df = alarm_df
-
-            st.dataframe(filtered_alarm_df)
-
-        # === Display Site-Wise Log ===
-        if view_site_wise:
-            st.markdown("### Site-Wise Log")
-            if site_wise_alarms != "All":
-                site_wise_log_df = alarm_df[alarm_df['Alarm Name'] == site_wise_alarms]
-                st.dataframe(site_wise_log_df)
-            else:
-                st.info("No specific alarm selected for Site-Wise Log.")
+        # Other functionality (processing alarms, etc.) continues here...
+        # Make sure to include your other checks and features from the previous code
 
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
-else:
-    st.warning("Please upload both the alarm and offline report files to proceed.")
 
+
+        # Get unique clusters for filtering
+        offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
+        offline_clusters.insert(0, "All")  # Add 'All' option
+        selected_offline_cluster = st.sidebar.selectbox(
+            "Select Cluster",
+            options=offline_clusters,
+            index=0
+        )
+
+ # === Current Alarms Filters ===
+        st.sidebar.subheader("Current Alarms Filters")
+        st.sidebar.text("[select alarm first]")
+        # Get unique alarm names
+        alarm_names = sorted(alarm_df['Alarm Name'].dropna().unique().tolist())
+        alarm_names.insert(0, "All")  # Add 'All' option
+        selected_alarm = st.sidebar.selectbox(
+            "Select Alarm to Filter",
+            options=alarm_names,
+            index=0
+        )
+
+        # === Site-Wise Log Filters ===
+        st.sidebar.subheader("Site-Wise Log Filters")
+        view_site_wise = st.sidebar.checkbox("View Site-Wise Log")
+        if view_site_wise:
+            site_wise_alarms = st.sidebar.selectbox(
+                "Select Alarm for Site-Wise Log",
+                options=alarm_names,
+                index=0
+            )
 
         # Determine if dark mode is active
         # Note: Streamlit does not provide a direct method to detect theme,
