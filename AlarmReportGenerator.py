@@ -340,12 +340,7 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
 
         # Other functionality (processing alarms, etc.) continues here...
         # Make sure to include your other checks and features from the previous code
-
-    except Exception as e:
-        st.error(f"An error occurred while processing the files: {e}")
-
-
-        # Get unique clusters for filtering
+            # Get unique clusters for filtering
         offline_clusters = sorted(offline_df['Cluster'].dropna().unique().tolist())
         offline_clusters.insert(0, "All")  # Add 'All' option
         selected_offline_cluster = st.sidebar.selectbox(
@@ -544,5 +539,8 @@ if uploaded_alarm_file is not None and uploaded_offline_file is not None:
                 )
             else:
                 st.warning("No current alarm data available for export.")
+
     except Exception as e:
         st.error(f"An error occurred while processing the files: {e}")
+
+
